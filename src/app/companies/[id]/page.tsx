@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import type { Company, Contact, Recommendation, Signal } from "@/lib/types";
+import type { Company, Contact, Priority, Recommendation, Signal } from "@/lib/types";
 
 interface DetailResponse {
   company: Company;
@@ -10,6 +10,18 @@ interface DetailResponse {
   signals: Signal[];
   recommendations: Recommendation[];
 }
+
+const PRIORITY_LABEL: Record<Priority, string> = {
+  high: "Wysoki priorytet",
+  medium: "Sredni priorytet",
+  low: "Niski priorytet",
+};
+
+const PRIORITY_COLOR: Record<Priority, string> = {
+  high: "bg-green-100 text-green-800",
+  medium: "bg-amber-100 text-amber-800",
+  low: "bg-slate-200 text-slate-700",
+};
 
 const SIGNAL_LABEL: Record<Signal["type"], string> = {
   job_posting: "Rekrutacja",
@@ -34,6 +46,9 @@ export default function CompanyDetailPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [krsInput, setKrsInput] = useState("");
+  const [krsBusy, setKrsBusy] = useState(false);
+  const [krsError, setKrsError] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch(`/api/companies/${params.id}`);
@@ -69,6 +84,26 @@ export default function CompanyDetailPage() {
     setGeneratingFor(null);
   }
 
+  async function checkKrs(e: React.FormEvent) {
+    e.preventDefault();
+    if (!krsInput.trim()) return;
+    setKrsBusy(true);
+    setKrsError(null);
+    const res = await fetch(`/api/companies/${params.id}/krs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ krsNumber: krsInput.trim() }),
+    });
+    const body = await res.json();
+    setKrsBusy(false);
+    if (!res.ok) {
+      setKrsError(body.error ?? "Nie udalo sie sprawdzic KRS");
+      return;
+    }
+    setKrsInput("");
+    await load();
+  }
+
   async function deleteCompany() {
     if (!confirm("Usunac te firme wraz z kontaktami i historia?")) return;
     setDeleting(true);
@@ -96,7 +131,15 @@ export default function CompanyDetailPage() {
                 {company.employeeCount} pracownikow
               </span>
             )}
+            {company.priority && (
+              <span className={`badge ${PRIORITY_COLOR[company.priority]}`}>
+                {PRIORITY_LABEL[company.priority]}
+              </span>
+            )}
           </div>
+          {company.priorityReason && (
+            <p className="mt-2 text-xs text-slate-400">{company.priorityReason}</p>
+          )}
         </div>
         <button
           onClick={deleteCompany}
@@ -105,6 +148,57 @@ export default function CompanyDetailPage() {
         >
           Usun
         </button>
+      </section>
+
+      <section className="card">
+        <h2 className="mb-1 text-lg font-semibold">Weryfikacja w KRS</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          Wpisz numer KRS recznie (nie da sie go automatycznie znalezc po
+          domenie - oficjalna wyszukiwarka KRS jest zablokowana dla botow).
+          Pobierzemy twarde fakty rejestrowe. Wykrywanie likwidacji/upadlosci
+          jest orientacyjne - w razie watpliwosci sprawdz pelny odpis.
+        </p>
+        {company.krsNumber ? (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="badge bg-slate-100">KRS {company.krsNumber}</span>
+            {company.krsLegalForm && (
+              <span className="badge bg-slate-100">{company.krsLegalForm}</span>
+            )}
+            {company.krsRegisteredAt && (
+              <span className="badge bg-slate-100">
+                zarejestrowana {company.krsRegisteredAt}
+              </span>
+            )}
+            {company.krsLegalFlag && (
+              <span className="badge bg-red-100 text-red-800">
+                {company.krsLegalFlag === "upadlosc"
+                  ? "Upadlosc (wg KRS)"
+                  : "W likwidacji (wg KRS)"}
+              </span>
+            )}
+            <a
+              href={`https://ekrs.ms.gov.pl/web/wyszukiwarka-krs/strona-glowna/`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              sprawdz pelny odpis
+            </a>
+          </div>
+        ) : (
+          <form onSubmit={checkKrs} className="flex flex-wrap gap-2">
+            <input
+              className="min-w-[160px] rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Numer KRS, np. 0000635012"
+              value={krsInput}
+              onChange={(e) => setKrsInput(e.target.value)}
+            />
+            <button type="submit" disabled={krsBusy} className="btn btn-secondary">
+              {krsBusy ? "Sprawdzam..." : "Sprawdz w KRS"}
+            </button>
+          </form>
+        )}
+        {krsError && <p className="mt-2 text-sm text-red-600">{krsError}</p>}
       </section>
 
       <section className="card">

@@ -46,6 +46,33 @@ Kazda integracja ma **tryb demo**: jesli nie skonfigurujesz danego klucza
 API, modul zwraca sensowne, oznaczone dane demonstracyjne, zeby mozna bylo
 przetestowac cala sciezke bez zadnych placonych kont.
 
+## Weryfikacja hurtowa calej bazy klientow
+
+- **Dodaj wiele firm naraz** ("Dodaj wiele firm naraz" na dashboardzie) -
+  wklejasz liste domen (jedna na linie, max 30 na raz), aplikacja dodaje i
+  wzbogaca je wszystkie po kolei tym samym waterfallem co przy dodawaniu
+  pojedynczej firmy.
+- **"Weryfikuj wszystko"** (przycisk na dashboardzie) - dla kazdego konta w
+  bazie na nowo: odswieza dane firmy i kontakty, sprawdza nowe sygnaly i
+  przelicza priorytet. Jeden klik zamiast recznego odswiezania kazdej
+  firmy osobno.
+- **Priorytet ("warto uderzac")** - kazda firma dostaje etykiete Wysoki /
+  Sredni / Niski priorytet (`src/lib/priority.ts`), wyliczana z: typu i
+  swiezosci wykrytego sygnalu (finansowanie > zmiana w zarzadzie >
+  rekrutacja > wzmianka w mediach), jakosci najlepszego kontaktu (realny
+  z Apollo/strony firmy vs demo) i dopasowania jego stanowiska do ICP.
+  Prosta, czytelna regula - nie czarna skrzynka.
+- **Recznik weryfikacja w KRS** (na stronie firmy) - wpisujesz numer KRS,
+  aplikacja pobiera prawdziwe fakty rejestrowe (forma prawna, data
+  rejestracji, NIP/REGON) z publicznego, bezplatnego API Ministerstwa
+  Sprawiedliwosci i orientacyjnie oznacza likwidacje/upadlosc (wtedy
+  priorytet automatycznie spada do "Niski"). **Nie da sie tego zrobic
+  automatycznie po samej domenie** - oficjalna wyszukiwarka KRS po nazwie
+  jest zablokowana botem-ochronnym (Incapsula) i nie ma publicznego API do
+  wyszukiwania, tylko do odczytu po znanym numerze KRS. Sklad zarzadu w
+  odpisie jest tez czesciowo zanonimizowany (RODO), wiec nie da sie z
+  niego wyciagnac nazwisk jako kontaktow.
+
 ## Uruchomienie
 
 ```bash
@@ -88,6 +115,9 @@ src/
     news.ts         - darmowe zrodlo sygnalow (Google News RSS)
     signals.ts       - laczy Apollo job postings + news w liste sygnalow
     claude.ts        - generowanie rekomendacji kontaktu (Claude + fallback szablonowy)
+    priority.ts       - wyliczanie priorytetu "warto uderzac" (Wysoki/Sredni/Niski)
+    krs.ts            - bezplatne, bez klucza pobieranie faktow rejestrowych z KRS (recznie po numerze)
+    enrich-company.ts  - wspolny helper (org enrichment + kontakty + e-maile) uzywany przez dodawanie pojedyncze, hurtowe i "weryfikuj wszystko"
   app/
     page.tsx                       - dashboard: lista kont + dodawanie firmy
     icp/page.tsx                    - konfiguracja profilu ICP / oferty

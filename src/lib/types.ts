@@ -33,6 +33,8 @@ export interface Contact {
   isPrimary: boolean;
 }
 
+export type Priority = "high" | "medium" | "low";
+
 export interface Company {
   id: string;
   name: string;
@@ -43,6 +45,15 @@ export interface Company {
   createdAt: string;
   lastEnrichedAt?: string;
   lastSignalsRefreshAt?: string;
+  lastVerifiedAt?: string;
+  priority?: Priority;
+  priorityReason?: string;
+  /** Optional, manually-entered KRS registry facts (see src/lib/krs.ts). */
+  krsNumber?: string;
+  krsLegalForm?: string;
+  krsRegisteredAt?: string;
+  krsLegalFlag?: "w_likwidacji" | "upadlosc";
+  krsCheckedAt?: string;
 }
 
 export interface Recommendation {
