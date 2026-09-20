@@ -104,12 +104,12 @@ const STAGE_LABEL: Record<Stage, string> = {
 const CONTACT_SOURCE_BADGE: Record<string, string> = {
   apollo: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
   website: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
-  demo: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
+  manual: "bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-200",
 };
 const CONTACT_SOURCE_LABEL: Record<string, string> = {
   apollo: "Apollo",
   website: "strona firmy",
-  demo: "demo",
+  manual: "dodany recznie",
 };
 
 const AVATAR_COLORS = [
@@ -142,6 +142,20 @@ export default function CompanyDetailPage() {
   const [savingStage, setSavingStage] = useState(false);
   const [nextStepAt, setNextStepAt] = useState("");
   const [nextStepNote, setNextStepNote] = useState("");
+  const [editingCompany, setEditingCompany] = useState(false);
+  const [companyForm, setCompanyForm] = useState({ industry: "", employeeCount: "", city: "", phone: "" });
+  const [savingCompany, setSavingCompany] = useState(false);
+  const [addingContact, setAddingContact] = useState(false);
+  const [contactForm, setContactForm] = useState({
+    firstName: "",
+    lastName: "",
+    title: "",
+    phone: "",
+    email: "",
+    linkedinUrl: "",
+  });
+  const [contactSaving, setContactSaving] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch(`/api/companies/${params.id}`);
@@ -153,6 +167,12 @@ export default function CompanyDetailPage() {
     setData(body);
     setNextStepAt(body.company.nextStepAt?.slice(0, 10) ?? "");
     setNextStepNote(body.company.nextStepNote ?? "");
+    setCompanyForm({
+      industry: body.company.industry ?? "",
+      employeeCount: body.company.employeeCount?.toString() ?? "",
+      city: body.company.city ?? "",
+      phone: body.company.phone ?? "",
+    });
   }
 
   useEffect(() => {
@@ -176,6 +196,43 @@ export default function CompanyDetailPage() {
     });
     await load();
     setGeneratingFor(null);
+  }
+
+  async function saveCompanyFields() {
+    setSavingCompany(true);
+    await fetch(`/api/companies/${params.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        industry: companyForm.industry || null,
+        employeeCount: companyForm.employeeCount ? Number(companyForm.employeeCount) : null,
+        city: companyForm.city || null,
+        phone: companyForm.phone || null,
+      }),
+    });
+    await load();
+    setSavingCompany(false);
+    setEditingCompany(false);
+  }
+
+  async function addContact(e: React.FormEvent) {
+    e.preventDefault();
+    setContactSaving(true);
+    setContactError(null);
+    const res = await fetch(`/api/companies/${params.id}/contacts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(contactForm),
+    });
+    const body = await res.json();
+    setContactSaving(false);
+    if (!res.ok) {
+      setContactError(body.error ?? "Nie udalo sie dodac kontaktu");
+      return;
+    }
+    setContactForm({ firstName: "", lastName: "", title: "", phone: "", email: "", linkedinUrl: "" });
+    setAddingContact(false);
+    await load();
   }
 
   async function saveStage(patch: {
@@ -268,6 +325,17 @@ export default function CompanyDetailPage() {
             {company.employeeCount && (
               <span className="badge bg-ink-100 text-ink-600">{company.employeeCount} pracownikow</span>
             )}
+            {company.city && <span className="badge bg-ink-100 text-ink-600">{company.city}</span>}
+            {company.phone && (
+              <a href={`tel:${company.phone}`} className="badge bg-ink-100 text-ink-600 hover:bg-ink-200">
+                {company.phone}
+              </a>
+            )}
+            {!company.industry && !company.employeeCount && !company.city && (
+              <span className="badge bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200">
+                Brak danych o firmie - uzupelnij recznie
+              </span>
+            )}
             {company.priority && (
               <span className={`badge ${PRIORITY_BADGE[company.priority]}`}>
                 {PRIORITY_LABEL[company.priority]}
@@ -276,6 +344,53 @@ export default function CompanyDetailPage() {
           </div>
           {company.priorityReason && (
             <p className="mt-2 max-w-xl text-xs text-ink-400">{company.priorityReason}</p>
+          )}
+          <button
+            onClick={() => setEditingCompany((v) => !v)}
+            className="mt-2 text-[13px] font-semibold text-brand-600 hover:text-brand-700"
+          >
+            {editingCompany ? "Anuluj" : "Edytuj / uzupelnij dane firmy"}
+          </button>
+          {editingCompany && (
+            <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-ink-100 pt-3">
+              <label className="flex flex-col gap-1">
+                <span className="label">Branza</span>
+                <input
+                  className="input !py-1.5 text-sm"
+                  value={companyForm.industry}
+                  onChange={(e) => setCompanyForm({ ...companyForm, industry: e.target.value })}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="label">Pracownicy</span>
+                <input
+                  type="number"
+                  min={0}
+                  className="input !py-1.5 w-28 text-sm"
+                  value={companyForm.employeeCount}
+                  onChange={(e) => setCompanyForm({ ...companyForm, employeeCount: e.target.value })}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="label">Miasto</span>
+                <input
+                  className="input !py-1.5 text-sm"
+                  value={companyForm.city}
+                  onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="label">Telefon firmy</span>
+                <input
+                  className="input !py-1.5 text-sm"
+                  value={companyForm.phone}
+                  onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })}
+                />
+              </label>
+              <button onClick={saveCompanyFields} disabled={savingCompany} className="btn btn-secondary">
+                {savingCompany ? "Zapisuje..." : "Zapisz"}
+              </button>
+            </div>
           )}
         </div>
         <button onClick={deleteCompany} disabled={deleting} className="btn btn-danger shrink-0">
@@ -439,13 +554,81 @@ export default function CompanyDetailPage() {
       </section>
 
       <section className="card p-5 sm:p-6">
-        <div className="mb-3 flex items-center gap-2">
-          <Users className="h-4 w-4 text-ink-400" />
-          <h2 className="section-title">Kontakty decyzyjne</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-ink-400" />
+            <h2 className="section-title">Kontakty decyzyjne</h2>
+          </div>
+          <button
+            onClick={() => setAddingContact((v) => !v)}
+            className="text-[13px] font-semibold text-brand-600 hover:text-brand-700"
+          >
+            {addingContact ? "Anuluj" : "+ Dodaj kontakt recznie"}
+          </button>
         </div>
-        {contacts.length === 0 ? (
-          <p className="text-sm text-ink-500">Brak znalezionych kontaktow.</p>
-        ) : (
+        {contacts.length === 0 && !addingContact && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-800">
+            Nie znaleziono zweryfikowanego kontaktu (Apollo wymaga platnego
+            planu, na stronie firmy nie ma publicznej listy osob). Sprawdz
+            LinkedIn recznie i dodaj osobe, ktora tam znajdziesz - nic tu nie
+            zgadujemy za Ciebie.
+          </div>
+        )}
+        {addingContact && (
+          <form
+            onSubmit={addContact}
+            className="mb-4 flex flex-col gap-2 rounded-xl border border-ink-100 p-3.5"
+          >
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input
+                required
+                className="input"
+                placeholder="Imie"
+                value={contactForm.firstName}
+                onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })}
+              />
+              <input
+                required
+                className="input"
+                placeholder="Nazwisko"
+                value={contactForm.lastName}
+                onChange={(e) => setContactForm({ ...contactForm, lastName: e.target.value })}
+              />
+            </div>
+            <input
+              required
+              className="input"
+              placeholder="Stanowisko, np. Prezes Zarzadu"
+              value={contactForm.title}
+              onChange={(e) => setContactForm({ ...contactForm, title: e.target.value })}
+            />
+            <div className="grid gap-2 sm:grid-cols-3">
+              <input
+                className="input"
+                placeholder="Telefon"
+                value={contactForm.phone}
+                onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
+              />
+              <input
+                className="input"
+                placeholder="E-mail"
+                value={contactForm.email}
+                onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+              />
+              <input
+                className="input"
+                placeholder="Link do LinkedIn"
+                value={contactForm.linkedinUrl}
+                onChange={(e) => setContactForm({ ...contactForm, linkedinUrl: e.target.value })}
+              />
+            </div>
+            {contactError && <p className="text-sm text-red-600">{contactError}</p>}
+            <button type="submit" disabled={contactSaving} className="btn btn-primary self-start">
+              {contactSaving ? "Dodaje..." : "Dodaj kontakt"}
+            </button>
+          </form>
+        )}
+        {contacts.length > 0 && (
           <div className="flex flex-col gap-2">
             {sortedContacts.map((c) => (
               <div

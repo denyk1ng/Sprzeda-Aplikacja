@@ -230,6 +230,15 @@ export function Calendar(props: IconProps) {
   );
 }
 
+export function MapPin(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 21.5s7-6.2 7-11.7a7 7 0 1 0-14 0c0 5.5 7 11.7 7 11.7Z" />
+      <circle cx="12" cy="9.8" r="2.3" />
+    </svg>
+  );
+}
+
 export function ScaleIcon(props: IconProps) {
   return (
     <svg {...base(props)}>

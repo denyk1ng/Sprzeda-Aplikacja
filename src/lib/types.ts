@@ -26,9 +26,9 @@ export interface Contact {
   phone?: string;
   email?: string;
   emailStatus?: "verified" | "guessed" | "unknown";
-  emailSource?: "apollo" | "snov" | "demo";
+  emailSource?: "apollo" | "snov" | "pattern_guess";
   /** Where the person's name/title itself came from. */
-  contactSource?: "apollo" | "website" | "demo";
+  contactSource?: "apollo" | "website" | "manual";
   apolloPersonId?: string;
   titleMatchScore: number;
   isPrimary: boolean;
@@ -58,6 +58,8 @@ export interface Company {
   industry?: string;
   employeeCount?: number;
   city?: string;
+  /** General company phone number (e.g. from a real map/registry listing, not a specific person). */
+  phone?: string;
   apolloOrgId?: string;
   createdAt: string;
   lastEnrichedAt?: string;

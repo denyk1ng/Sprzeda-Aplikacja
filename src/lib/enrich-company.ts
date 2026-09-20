@@ -1,6 +1,5 @@
 import { enrichOrganization, findDecisionMakers } from "./apollo";
 import { discoverContactsFromWebsite } from "./discovery";
-import { demoContacts } from "./contact-utils";
 import { findAndVerifyEmail } from "./snov";
 import { newId } from "./store";
 import type { Company, Contact } from "./types";
@@ -35,9 +34,10 @@ export async function buildCompanyFromDomain(
 
 /**
  * Waterfall: Apollo People Search (paid plans) -> our own website scraper
- * (free) -> demo placeholders, then a Snov.io email waterfall for anyone
- * still missing a verified email. Shared by single-add, bulk-add, and
- * "verify all" so the same logic never drifts between call sites.
+ * (free). Returns an EMPTY array - never fabricated people - when neither
+ * finds a real person; the UI then prompts the user to add one manually
+ * (see manualContact in contact-utils.ts). Shared by single-add, bulk-add,
+ * and "verify all" so the same logic never drifts between call sites.
  */
 export async function enrichCompanyContacts(
   company: Company,
@@ -51,7 +51,7 @@ export async function enrichCompanyContacts(
       targetTitles
     )) ??
     (await discoverContactsFromWebsite(company.id, company.domain, targetTitles)) ??
-    demoContacts(company.id, company.domain, targetTitles);
+    [];
 
   for (const contact of contacts) {
     if (!contact.email || contact.emailStatus !== "verified") {

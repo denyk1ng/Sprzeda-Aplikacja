@@ -10,8 +10,8 @@ const SIGNAL_WEIGHT: Record<SignalType, number> = {
 
 const CONTACT_SOURCE_WEIGHT: Record<string, number> = {
   apollo: 1,
+  manual: 0.9,
   website: 0.7,
-  demo: 0,
 };
 
 const SIGNAL_LABEL: Record<SignalType, string> = {
@@ -70,7 +70,7 @@ export function computePriority(
 
   const primaryContact = contacts.find((c) => c.isPrimary) ?? contacts[0];
   const contactSourceScore = primaryContact
-    ? CONTACT_SOURCE_WEIGHT[primaryContact.contactSource ?? "demo"] ?? 0
+    ? CONTACT_SOURCE_WEIGHT[primaryContact.contactSource ?? ""] ?? 0
     : 0;
   const titleScore = primaryContact ? primaryContact.titleMatchScore / 100 : 0;
 
@@ -95,7 +95,7 @@ export function computePriority(
         ? "Apollo"
         : primaryContact.contactSource === "website"
         ? "strona firmy"
-        : "demo";
+        : "dodany recznie";
     reasonParts.push(
       `kontakt: ${primaryContact.title} (${sourceLabel}, dopasowanie ${primaryContact.titleMatchScore}%)`
     );

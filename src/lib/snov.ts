@@ -35,12 +35,17 @@ async function getAccessToken(): Promise<string | null> {
 export interface SnovEmailResult {
   email: string;
   status: "verified" | "guessed" | "unknown";
-  source: "snov" | "demo";
+  source: "snov" | "pattern_guess";
 }
 
 /**
  * Waterfall step used when Apollo did not return a verified email for a contact:
- * Snov.io "Get emails from names" + verification status.
+ * Snov.io "Get emails from names" + verification status. When Snov isn't
+ * configured or comes back empty, falls back to the standard
+ * firstname.lastname@domain convention guess - a real, commonly-used
+ * technique (the same one Hunter.io/Apollo call "pattern match"), always
+ * surfaced to the user as "przypuszczalny" (unverified), never as a
+ * confirmed email.
  */
 export async function findAndVerifyEmail(
   firstName: string,
@@ -48,7 +53,7 @@ export async function findAndVerifyEmail(
   domain: string
 ): Promise<SnovEmailResult> {
   const token = await getAccessToken();
-  if (!token) return demoEmail(firstName, lastName, domain);
+  if (!token) return patternGuessEmail(firstName, lastName, domain);
 
   try {
     const findRes = await fetch(
@@ -60,11 +65,11 @@ export async function findAndVerifyEmail(
           domain,
         }).toString()
     );
-    if (!findRes.ok) return demoEmail(firstName, lastName, domain);
+    if (!findRes.ok) return patternGuessEmail(firstName, lastName, domain);
     const findData = await findRes.json();
     const best = (findData.data ?? []).find((e: any) => e.email) ?? findData.data?.[0];
     const email: string | undefined = best?.email;
-    if (!email) return demoEmail(firstName, lastName, domain);
+    if (!email) return patternGuessEmail(firstName, lastName, domain);
 
     const verifyRes = await fetch(
       `${SNOV_BASE}/v1/get-emails-verification-status?` +
@@ -81,11 +86,11 @@ export async function findAndVerifyEmail(
     }
     return { email, status: "guessed", source: "snov" };
   } catch {
-    return demoEmail(firstName, lastName, domain);
+    return patternGuessEmail(firstName, lastName, domain);
   }
 }
 
-function demoEmail(firstName: string, lastName: string, domain: string): SnovEmailResult {
+function patternGuessEmail(firstName: string, lastName: string, domain: string): SnovEmailResult {
   const local = `${firstName}.${lastName}`.toLowerCase().replace(/[^a-z.]/g, "");
-  return { email: `${local}@${domain}`, status: "guessed", source: "demo" };
+  return { email: `${local}@${domain}`, status: "guessed", source: "pattern_guess" };
 }

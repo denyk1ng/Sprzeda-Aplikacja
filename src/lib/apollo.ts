@@ -1,5 +1,5 @@
 import type { Contact } from "./types";
-import { hashSeed, rankAndFlagPrimary, scoreTitle } from "./contact-utils";
+import { rankAndFlagPrimary, scoreTitle } from "./contact-utils";
 
 const APOLLO_BASE = "https://api.apollo.io/api/v1";
 
@@ -23,10 +23,15 @@ function hasApolloKey(): boolean {
   return Boolean(process.env.APOLLO_API_KEY);
 }
 
-/** Enrich organization data by domain (Apollo "Organization Enrichment"). */
+/**
+ * Enrich organization data by domain (Apollo "Organization Enrichment").
+ * Returns an empty object - NEVER fabricated numbers - when Apollo has no
+ * key or no match, so the UI can honestly show "nieznane" instead of a
+ * plausible-looking but made-up industry/headcount.
+ */
 export async function enrichOrganization(domain: string): Promise<ApolloOrgInfo> {
   if (!hasApolloKey()) {
-    return demoOrgInfo(domain);
+    return {};
   }
   try {
     const res = await fetch(
@@ -41,22 +46,22 @@ export async function enrichOrganization(domain: string): Promise<ApolloOrgInfo>
     if (!res.ok) throw new Error(`Apollo org enrich failed: ${res.status}`);
     const data = await res.json();
     const org = data.organization;
-    if (!org) return demoOrgInfo(domain);
+    if (!org) return {};
     return {
       apolloOrgId: org.id,
       industry: org.industry,
       employeeCount: org.estimated_num_employees,
     };
   } catch {
-    return demoOrgInfo(domain);
+    return {};
   }
 }
 
 /**
  * Find people at the organization matching the ICP target titles (Apollo "People Search").
- * Returns null (rather than demo data) when Apollo can't be used - e.g. no key, no org id,
- * or the endpoint is plan-restricted (People Search requires a paid Apollo plan) - so the
- * caller can fall through to the website-scraping discovery before giving up to demo data.
+ * Returns null when Apollo can't be used - e.g. no key, no org id, or the
+ * endpoint is plan-restricted (People Search requires a paid Apollo plan) -
+ * so the caller can fall through to the website-scraping discovery.
  */
 export async function findDecisionMakers(
   companyId: string,
@@ -139,14 +144,4 @@ export async function fetchJobPostings(
   } catch {
     return [];
   }
-}
-
-function demoOrgInfo(domain: string): ApolloOrgInfo {
-  const seed = hashSeed(domain);
-  const industries = ["SaaS", "E-commerce", "Fintech", "Manufacturing", "Logistics"];
-  return {
-    apolloOrgId: undefined,
-    industry: industries[seed % industries.length],
-    employeeCount: 20 + (seed % 480),
-  };
 }

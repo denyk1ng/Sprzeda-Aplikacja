@@ -6,8 +6,8 @@ import { newId } from "./store";
 /**
  * Clay-style "what changed at this account" pass: pulls job postings (Apollo)
  * and public news mentions (Google News RSS) and turns them into Signal rows.
- * Falls back to a plausible demo signal when both sources come back empty,
- * so the recommendation flow is always testable without paid keys.
+ * Returns an empty array - never a fabricated signal - when both sources
+ * come back empty; the UI shows an honest "brak wykrytych sygnalow" state.
  */
 export async function collectSignals(company: Company): Promise<Signal[]> {
   const signals: Signal[] = [];
@@ -40,37 +40,5 @@ export async function collectSignals(company: Company): Promise<Signal[]> {
     });
   }
 
-  if (signals.length === 0) {
-    signals.push(...demoSignals(company));
-  }
-
   return signals;
-}
-
-function demoSignals(company: Company): Signal[] {
-  const templates = [
-    {
-      type: "job_posting" as const,
-      title: `Nowa rekrutacja: Sales Development Representative`,
-      description: `${company.name} otworzyl(a) rekrutacje na SDR — sygnal, ze zespol sprzedazy rosnie i moze brakowac procesow/narzedzi do skalowania.`,
-    },
-    {
-      type: "funding" as const,
-      title: `${company.name} pozyskuje nowe finansowanie`,
-      description: `Firma weszla w nowa runde finansowania — dobry moment na rozmowe o inwestycji w narzedzia wspierajace wzrost.`,
-    },
-  ];
-  const seed = company.domain.length % templates.length;
-  const t = templates[seed];
-  return [
-    {
-      id: newId("sig"),
-      companyId: company.id,
-      type: t.type,
-      title: t.title,
-      description: `[DEMO] ${t.description}`,
-      source: "demo",
-      detectedAt: new Date().toISOString(),
-    },
-  ];
 }

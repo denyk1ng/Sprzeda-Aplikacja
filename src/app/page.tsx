@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Company, Priority } from "@/lib/types";
 import type { HiringLead } from "@/lib/job-signals";
+import type { GeoLead } from "@/lib/geo-discovery";
 import {
   Briefcase,
   Building,
   ChevronRight,
+  MapPin,
+  Phone,
   Plus,
   RefreshCw,
   Search,
@@ -55,6 +58,13 @@ export default function DashboardPage() {
   const [jobSearching, setJobSearching] = useState(false);
   const [jobError, setJobError] = useState<string | null>(null);
   const [addingLead, setAddingLead] = useState<string | null>(null);
+
+  const [geoCity, setGeoCity] = useState("");
+  const [geoKeyword, setGeoKeyword] = useState("");
+  const [geoLeads, setGeoLeads] = useState<GeoLead[] | null>(null);
+  const [geoSearching, setGeoSearching] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const [addingGeoLead, setAddingGeoLead] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -178,6 +188,49 @@ export default function DashboardPage() {
     await load();
   }
 
+  async function searchGeo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!geoCity.trim()) return;
+    setGeoSearching(true);
+    setGeoError(null);
+    const res = await fetch("/api/discover/geo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ city: geoCity.trim(), keyword: geoKeyword || undefined }),
+    });
+    const data = await res.json();
+    setGeoSearching(false);
+    if (!res.ok) {
+      setGeoError(data.error ?? "Nie udalo sie przeszukac okolicy");
+      setGeoLeads(null);
+      return;
+    }
+    setGeoLeads(data.leads);
+  }
+
+  async function addGeoLead(lead: GeoLead) {
+    setAddingGeoLead(lead.osmId);
+    setGeoError(null);
+    const res = await fetch("/api/discover/geo/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: lead.name,
+        domain: lead.website,
+        city: lead.city,
+        phone: lead.phone,
+      }),
+    });
+    const data = await res.json();
+    setAddingGeoLead(null);
+    if (!res.ok) {
+      setGeoError(data.error ?? "Nie udalo sie dodac firmy");
+      return;
+    }
+    setGeoLeads((prev) => prev?.filter((l) => l.osmId !== lead.osmId) ?? null);
+    await load();
+  }
+
   return (
     <div className="flex flex-col gap-7 animate-in">
       <div>
@@ -211,9 +264,10 @@ export default function DashboardPage() {
       <section className="card p-5 sm:p-6">
         <h2 className="section-title">Dodaj konto</h2>
         <p className="mt-1 text-sm text-ink-500">
-          Automatycznie znajdziemy wlasciwa osobe decyzyjna (Apollo -&gt;
-          skaner strony firmy -&gt; demo), dobierzemy e-mail i wyliczymy
-          priorytet kontaktu.
+          Sprobujemy znalezc prawdziwa osobe decyzyjna (Apollo, potem strona
+          firmy) i dobrac e-mail. Jesli nic realnego sie nie znajdzie, na
+          karcie firmy dodasz kontakt recznie - nigdy nie pokazujemy
+          wygenerowanych danych jako prawdziwych.
         </p>
         <form onSubmit={addCompany} className="mt-4 flex flex-wrap gap-3">
           <input
@@ -271,6 +325,89 @@ export default function DashboardPage() {
               )}
             </div>
           </form>
+        )}
+      </section>
+
+      <section className="card p-5 sm:p-6">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-ink-400" />
+          <h2 className="section-title">Znajdz prawdziwe firmy w okolicy</h2>
+        </div>
+        <p className="mt-1 text-xs text-ink-500">
+          Wpisz miasto (np. Lublin) - przeszukamy OpenStreetMap w poszukiwaniu
+          realnie zmapowanych firm z ta lokalizacja (adres, czesto telefon i
+          strona). To dane z mapy, wiec traktuj je jako punkt startowy do
+          wlasnej weryfikacji, nie gotowa liste - nic tu nie jest wygenerowane.
+        </p>
+        <form onSubmit={searchGeo} className="mt-4 flex flex-wrap gap-3">
+          <input
+            required
+            className="input flex-1 min-w-[140px]"
+            placeholder="Miasto, np. Lublin"
+            value={geoCity}
+            onChange={(e) => setGeoCity(e.target.value)}
+          />
+          <input
+            className="input flex-1 min-w-[180px]"
+            placeholder="Slowo kluczowe (opcjonalnie), np. consulting"
+            value={geoKeyword}
+            onChange={(e) => setGeoKeyword(e.target.value)}
+          />
+          <button type="submit" disabled={geoSearching} className="btn btn-primary">
+            {geoSearching ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Search className="h-3.5 w-3.5" />
+            )}
+            {geoSearching ? "Szukam..." : "Szukaj"}
+          </button>
+        </form>
+        {geoError && <p className="mt-2 text-sm text-red-600">{geoError}</p>}
+        {geoLeads && (
+          <div className="mt-4 flex flex-col gap-2">
+            {geoLeads.length === 0 ? (
+              <p className="text-sm text-ink-500">
+                Brak wynikow dla tej miejscowosci w OpenStreetMap.
+              </p>
+            ) : (
+              geoLeads.map((lead) => (
+                <div
+                  key={lead.osmId}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ink-100 px-3.5 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-ink-900">{lead.name}</p>
+                    <p className="text-[13px] text-ink-500">
+                      {[lead.category, lead.street, lead.city].filter(Boolean).join(" - ")}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-ink-400">
+                      {lead.website && <span>{lead.website}</span>}
+                      {lead.phone && (
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          {lead.phone}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {lead.website ? (
+                    <button
+                      onClick={() => addGeoLead(lead)}
+                      disabled={addingGeoLead === lead.osmId}
+                      className="btn btn-secondary shrink-0"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {addingGeoLead === lead.osmId ? "Dodaje..." : "Dodaj"}
+                    </button>
+                  ) : (
+                    <span className="badge shrink-0 bg-ink-100 text-ink-500">
+                      brak strony - dodaj recznie
+                    </span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         )}
       </section>
 

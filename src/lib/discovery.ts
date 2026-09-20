@@ -189,7 +189,7 @@ function toContact(
 /**
  * Scans the company's own site for a team/about/leadership page and pulls
  * real names + titles from it. Returns null when no page or no plausible
- * people could be found, so the caller can fall back to demo data.
+ * people could be found, so the caller can prompt the user to add one manually.
  */
 export async function discoverContactsFromWebsite(
   companyId: string,

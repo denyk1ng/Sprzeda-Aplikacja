@@ -32,6 +32,10 @@ export async function PATCH(
     stage?: Stage;
     nextStepAt?: string | null;
     nextStepNote?: string | null;
+    industry?: string | null;
+    employeeCount?: number | null;
+    city?: string | null;
+    phone?: string | null;
   };
 
   const db = await updateDb((d) => {
@@ -44,6 +48,14 @@ export async function PATCH(
     if (body.nextStepNote !== undefined) {
       company.nextStepNote = body.nextStepNote ?? undefined;
     }
+    // Manual correction - the user verified this themselves, so it overrides
+    // whatever (if anything) Apollo returned.
+    if (body.industry !== undefined) company.industry = body.industry ?? undefined;
+    if (body.employeeCount !== undefined) {
+      company.employeeCount = body.employeeCount ?? undefined;
+    }
+    if (body.city !== undefined) company.city = body.city ?? undefined;
+    if (body.phone !== undefined) company.phone = body.phone ?? undefined;
   });
 
   const company = db.companies.find((c) => c.id === id);
