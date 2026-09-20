@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const db = readDb();
+  const db = await readDb();
   const existingDomains = new Set(db.companies.map((c) => c.domain));
 
   const added: Company[] = [];
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (added.length > 0) {
-    updateDb((d) => {
+    await updateDb((d) => {
       d.companies.push(...added);
       d.contacts.push(...newContacts);
     });

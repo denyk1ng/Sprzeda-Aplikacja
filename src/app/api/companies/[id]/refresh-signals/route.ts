@@ -8,7 +8,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const db = readDb();
+  const db = await readDb();
   const company = db.companies.find((c) => c.id === id);
   if (!company) {
     return NextResponse.json({ error: "Nie znaleziono firmy" }, { status: 404 });
@@ -26,7 +26,7 @@ export async function POST(
     ...toAdd,
   ]);
 
-  updateDb((d) => {
+  await updateDb((d) => {
     d.signals.push(...toAdd);
     const target = d.companies.find((c) => c.id === company.id);
     if (target) {

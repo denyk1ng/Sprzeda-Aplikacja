@@ -94,12 +94,46 @@ Aplikacja wystartuje na `http://localhost:3000`.
 Bez zadnego klucza aplikacja dziala w pelnym trybie demo (dane oznaczone
 jako `demo`/`[DEMO]`), co pozwala od razu zobaczyc caly przeplyw.
 
-## Dane
+## Dane / trwaly zapis
 
-Dane sa trzymane lokalnie w `data/db.json` (plik ignorowany przez git,
-tworzony automatycznie przy pierwszym uzyciu). To celowo prosty magazyn na
-etap MVP - latwo podmienic na baze danych (np. Postgres/Prisma), gdy
-narzedzie zacznie byc uzywane produkcyjnie / wieloosobowo.
+Lokalnie (`npm run dev`) dane sa trzymane w pliku `data/db.json` (w
+`.gitignore`, tworzony automatycznie) - zero setupu, dziala od razu.
+
+**Na hostingu (Vercel, Railway itp.) plik na dysku nie wystarczy** - taki
+serwer regularnie sie restartuje/usypia i przy kazdym restarcie plik
+wraca do zera. Dlatego `src/lib/store.ts` automatycznie przelacza sie na
+**Upstash Redis** (darmowy, trwaly, dziala z kazdym hostingiem), gdy w
+zmiennych srodowiskowych ustawisz `UPSTASH_REDIS_REST_URL` i
+`UPSTASH_REDIS_REST_TOKEN`. Caly stan aplikacji trzyma jako jeden obiekt
+JSON pod jednym kluczem - prosto, ale wystarczajaco na skale
+jednoosobowa/maloosobowa. Bez tych dwoch zmiennych aplikacja nadal dziala
+lokalnie na pliku.
+
+### Jak zalozyc darmowa baze Upstash (5 minut)
+
+1. Wejdz na https://console.upstash.com i zaloz konto (np. przez GitHub).
+2. Kliknij **Create Database**, wybierz dowolny region (najblizszy Twojemu
+   hostingowi), typ **Regional**.
+3. Wejdz w baze -> zakladka **REST API** -> skopiuj `UPSTASH_REDIS_REST_URL`
+   i `UPSTASH_REDIS_REST_TOKEN`.
+4. Wklej je do `.env.local` (lokalnie) lub do zmiennych srodowiskowych
+   swojego hostingu (patrz nizej).
+
+## Wdrozenie pod publiczny link (Vercel)
+
+1. Zaloz darmowe konto na https://vercel.com (najlatwiej przez "Continue
+   with GitHub").
+2. **Add New -> Project** -> wybierz repozytorium `Sprzeda-Aplikacja` i
+   branch z ta aplikacja. Vercel sam wykryje Next.js.
+3. W sekcji **Environment Variables** dodaj (te, ktore posiadasz):
+   `APOLLO_API_KEY`, `SNOV_CLIENT_ID`, `SNOV_CLIENT_SECRET`,
+   `ANTHROPIC_API_KEY`, oraz **koniecznie** `UPSTASH_REDIS_REST_URL` i
+   `UPSTASH_REDIS_REST_TOKEN` (patrz wyzej) - bez tych dwoch dane beda
+   znikac przy kazdym redeployu.
+4. Kliknij **Deploy**. Po chwili dostaniesz publiczny link
+   `https://twoj-projekt.vercel.app`, dzialajacy zawsze, bez Twojego
+   komputera.
+5. Kazdy kolejny `git push` na ten branch automatycznie zrobi nowy deploy.
 
 ## Struktura kodu
 
@@ -107,7 +141,7 @@ narzedzie zacznie byc uzywane produkcyjnie / wieloosobowo.
 src/
   lib/
     types.ts      - modele danych (Company, Contact, Signal, Recommendation, IcpProfile)
-    store.ts       - prosty magazyn JSON
+    store.ts       - magazyn danych: Upstash Redis (produkcja/hosting) albo plik JSON (lokalnie)
     apollo.ts       - integracja Apollo.io (org enrichment, people search, job postings)
     discovery.ts     - wlasny, bezplatny skaner strony firmy (fallback, gdy Apollo People Search jest niedostepny)
     contact-utils.ts - wspolne narzedzia do rankingu kontaktow (scoreTitle) i dane demo
@@ -127,8 +161,10 @@ src/
 
 ## Znane ograniczenia / dalsze kroki
 
-- Magazyn danych to plik JSON - wystarczajacy do pracy jednoosobowej,
-  do skalowania wymaga migracji na baze danych.
+- Magazyn danych (Redis/plik) trzyma caly stan jako jeden blob JSON bez
+  blokad na wspolbiezne zapisy - w porzadku dla jednej/kilku osob
+  klikajacych po kolei, przy realnym wieloosobowym uzyciu warto przejsc
+  na baze relacyjna z osobnymi tabelami (np. Postgres/Prisma).
 - Sledzenie sygnalow jest uruchamiane recznie (przycisk "Odswiez
   sygnaly"); naturalnym nastepnym krokiem jest cron/queue odswiezajacy
   sygnaly cyklicznie dla wszystkich kont i powiadamiajacy o nowych.

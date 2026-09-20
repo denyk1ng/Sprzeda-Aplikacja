@@ -8,7 +8,7 @@ import {
 import { computePriority } from "@/lib/priority";
 
 export async function GET() {
-  const db = readDb();
+  const db = await readDb();
   return NextResponse.json(db.companies);
 }
 
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
   const domain = normalizeDomain(domainInput);
 
-  const db = readDb();
+  const db = await readDb();
   if (db.companies.some((c) => c.domain === domain)) {
     return NextResponse.json(
       { error: "Ta firma jest juz na liscie" },
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   company.priorityReason = reason;
   company.lastVerifiedAt = new Date().toISOString();
 
-  updateDb((d) => {
+  await updateDb((d) => {
     d.companies.push(company);
     d.contacts.push(...contacts);
   });

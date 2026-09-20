@@ -21,7 +21,7 @@ interface VerifyResult {
  * gentle with Apollo/website rate limits than fast.
  */
 export async function POST() {
-  const db = readDb();
+  const db = await readDb();
   const targetTitles = db.icp.targetTitles;
 
   const results: VerifyResult[] = [];
@@ -66,7 +66,7 @@ export async function POST() {
     });
   }
 
-  updateDb((d) => {
+  await updateDb((d) => {
     const updatedIds = new Set(updatedCompanies.map((c) => c.id));
     d.companies = updatedCompanies;
     d.contacts = d.contacts.filter((c) => !updatedIds.has(c.companyId));

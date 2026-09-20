@@ -14,7 +14,7 @@ export async function POST(
     return NextResponse.json({ error: "Podaj numer KRS" }, { status: 400 });
   }
 
-  const db = readDb();
+  const db = await readDb();
   const company = db.companies.find((c) => c.id === id);
   if (!company) {
     return NextResponse.json({ error: "Nie znaleziono firmy" }, { status: 404 });
@@ -43,7 +43,7 @@ export async function POST(
   updated.priority = level;
   updated.priorityReason = reason;
 
-  updateDb((d) => {
+  await updateDb((d) => {
     const target = d.companies.find((c) => c.id === company.id);
     if (target) Object.assign(target, updated);
   });
