@@ -1,18 +1,25 @@
 /**
  * Free, key-less search for REAL companies in a specific Polish city/area,
  * e.g. Lublin - the thing the user explicitly asked for and the rebuild was
- * missing. Uses OpenStreetMap's Overpass API: crowd-sourced, but every
- * result is a real, mapped place (name + address, often phone/website),
- * never a generated placeholder. Honest limitations: coverage depends on
- * what's been mapped in OSM for that area, and there is no revenue/KRS data
- * attached - this only helps you FIND real companies to investigate, it does
- * not replace verifying them yourself.
+ * missing. Uses OpenStreetMap's Nominatim search API: crowd-sourced, but
+ * every result is a real, mapped place (name + address, often phone/
+ * website), never a generated placeholder.
+ *
+ * Note: the Overpass API (OSM's other query service) was tried first but
+ * its public instance actively blocks/resets requests from cloud-hosted IPs
+ * (confirmed from both this app's dev sandbox and its Vercel deployment) -
+ * Nominatim's /search endpoint does not have that problem and, with
+ * extratags=1, returns phone/website when OSM has them.
+ *
+ * Honest limitations: coverage depends on what's been mapped in OSM for
+ * that area, and there is no revenue/KRS data attached - this only helps
+ * you FIND real companies to investigate, it does not replace verifying
+ * them yourself. Nominatim's usage policy caps this at ~1 request/second,
+ * which one user click comfortably respects.
  */
 
-const OVERPASS_ENDPOINTS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
-];
+const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+const USER_AGENT = "ProspectingCopilot/0.1 (prospecting-copilot-three.vercel.app)";
 
 export interface GeoLead {
   name: string;
@@ -25,85 +32,64 @@ export interface GeoLead {
   osmId: string;
 }
 
-interface OverpassElement {
-  type: string;
-  id: number;
-  tags?: Record<string, string>;
+interface NominatimResult {
+  osm_type: string;
+  osm_id: number;
+  type?: string;
+  name?: string;
+  display_name: string;
+  address?: Record<string, string>;
+  extratags?: Record<string, string>;
 }
 
-function buildQuery(city: string, keyword?: string): string {
-  const escapedCity = city.replace(/"/g, '\\"');
-  // office=* is OSM's tag for company/business premises (IT, financial,
-  // consulting, government, ...); craft=* covers trades/manufacturing.
-  // Both are real "there is a business here" tags, unlike generic shop=*
-  // which would pull in a lot of retail noise for a B2B search.
-  return `
-[out:json][timeout:25];
-area["name"="${escapedCity}"]["boundary"="administrative"]->.a;
-(
-  node["office"](area.a);
-  way["office"](area.a);
-  node["craft"](area.a);
-  way["craft"](area.a);
-);
-out center tags 80;
-`.trim();
-}
-
-/** Searches OpenStreetMap for real, named businesses in the given Polish city. */
+/** Searches OpenStreetMap (via Nominatim) for real, named businesses matching a keyword in the given Polish city. */
 export async function findCompaniesInCity(
   city: string,
-  keyword?: string
+  keyword: string | undefined
 ): Promise<GeoLead[] | null> {
-  const query = buildQuery(city, keyword);
-  const kw = keyword?.trim().toLowerCase();
+  const query = `${keyword?.trim() || "firma"} ${city}`;
+  const url = `${NOMINATIM_URL}?${new URLSearchParams({
+    q: query,
+    format: "json",
+    limit: "30",
+    addressdetails: "1",
+    extratags: "1",
+    countrycodes: "pl",
+  })}`;
 
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain",
-          "User-Agent": "Mozilla/5.0 (compatible; ProspectingCopilot/0.1)",
-        },
-        body: query,
-        signal: AbortSignal.timeout(30_000),
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT, "Accept-Language": "pl" },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as NominatimResult[];
+
+    const seen = new Set<string>();
+    const leads: GeoLead[] = [];
+    for (const r of data) {
+      const name = r.name?.trim() || r.extratags?.name;
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const addr = r.address ?? {};
+      leads.push({
+        name,
+        city: addr.city ?? addr.town ?? addr.village ?? city,
+        street: addr.road,
+        houseNumber: addr.house_number,
+        category: r.type,
+        website: normalizeWebsite(r.extratags?.website),
+        phone: r.extratags?.phone ?? r.extratags?.["contact:phone"],
+        osmId: `${r.osm_type}/${r.osm_id}`,
       });
-      if (!res.ok) continue;
-      const data = (await res.json()) as { elements?: OverpassElement[] };
-      const elements = data.elements ?? [];
-
-      const seen = new Set<string>();
-      const leads: GeoLead[] = [];
-      for (const el of elements) {
-        const tags = el.tags ?? {};
-        const name = tags.name?.trim();
-        if (!name) continue;
-        if (kw) {
-          const haystack = `${name} ${tags.office ?? ""} ${tags.craft ?? ""}`.toLowerCase();
-          if (!haystack.includes(kw)) continue;
-        }
-        const key = name.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-
-        leads.push({
-          name,
-          city: tags["addr:city"] ?? city,
-          street: tags["addr:street"],
-          houseNumber: tags["addr:housenumber"],
-          category: tags.office ?? tags.craft,
-          website: normalizeWebsite(tags.website ?? tags["contact:website"]),
-          phone: tags.phone ?? tags["contact:phone"],
-          osmId: `${el.type}/${el.id}`,
-        });
-      }
-      return leads.slice(0, 60);
-    } catch {
-      // try the next mirror
     }
+    return leads;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 function normalizeWebsite(url: string | undefined): string | undefined {
