@@ -1,4 +1,5 @@
 import type { Contact } from "./types";
+import { hashSeed, rankAndFlagPrimary, scoreTitle } from "./contact-utils";
 
 const APOLLO_BASE = "https://api.apollo.io/api/v1";
 
@@ -52,17 +53,19 @@ export async function enrichOrganization(domain: string): Promise<ApolloOrgInfo>
 }
 
 /**
- * Find people at the organization matching the ICP target titles (Apollo "People Search"),
- * scored and sorted so the best-fit decision maker comes first.
+ * Find people at the organization matching the ICP target titles (Apollo "People Search").
+ * Returns null (rather than demo data) when Apollo can't be used - e.g. no key, no org id,
+ * or the endpoint is plan-restricted (People Search requires a paid Apollo plan) - so the
+ * caller can fall through to the website-scraping discovery before giving up to demo data.
  */
 export async function findDecisionMakers(
   companyId: string,
   domain: string,
   apolloOrgId: string | undefined,
   targetTitles: string[]
-): Promise<Contact[]> {
+): Promise<Contact[] | null> {
   if (!hasApolloKey() || !apolloOrgId) {
-    return demoContacts(companyId, domain, targetTitles);
+    return null;
   }
   try {
     const res = await fetch(`${APOLLO_BASE}/mixed_people/search`, {
@@ -79,10 +82,10 @@ export async function findDecisionMakers(
         per_page: 10,
       }),
     });
-    if (!res.ok) throw new Error(`Apollo people search failed: ${res.status}`);
+    if (!res.ok) return null; // e.g. 403 API_INACCESSIBLE on free plans
     const data = await res.json();
     const people: RawPerson[] = data.people ?? [];
-    if (people.length === 0) return demoContacts(companyId, domain, targetTitles);
+    if (people.length === 0) return null;
 
     const contacts: Contact[] = people.map((p) => ({
       id: `contact_${p.id}`,
@@ -97,6 +100,7 @@ export async function findDecisionMakers(
           ? "verified"
           : p.email ? "guessed" : "unknown",
       emailSource: p.email ? "apollo" : undefined,
+      contactSource: "apollo",
       apolloPersonId: p.id,
       titleMatchScore: scoreTitle(p.title ?? "", targetTitles),
       isPrimary: false,
@@ -105,7 +109,7 @@ export async function findDecisionMakers(
     rankAndFlagPrimary(contacts);
     return contacts;
   } catch {
-    return demoContacts(companyId, domain, targetTitles);
+    return null;
   }
 }
 
@@ -137,27 +141,6 @@ export async function fetchJobPostings(
   }
 }
 
-export function scoreTitle(title: string, targetTitles: string[]): number {
-  const t = title.toLowerCase();
-  let best = 0;
-  for (const target of targetTitles) {
-    const tt = target.toLowerCase();
-    if (t === tt) best = Math.max(best, 100);
-    else if (t.includes(tt) || tt.includes(t)) best = Math.max(best, 70);
-    else {
-      const words = tt.split(/\s+/);
-      const hits = words.filter((w) => t.includes(w)).length;
-      if (hits > 0) best = Math.max(best, Math.round((hits / words.length) * 50));
-    }
-  }
-  return best;
-}
-
-export function rankAndFlagPrimary(contacts: Contact[]) {
-  contacts.sort((a, b) => b.titleMatchScore - a.titleMatchScore);
-  contacts.forEach((c, i) => (c.isPrimary = i === 0));
-}
-
 function demoOrgInfo(domain: string): ApolloOrgInfo {
   const seed = hashSeed(domain);
   const industries = ["SaaS", "E-commerce", "Fintech", "Manufacturing", "Logistics"];
@@ -166,47 +149,4 @@ function demoOrgInfo(domain: string): ApolloOrgInfo {
     industry: industries[seed % industries.length],
     employeeCount: 20 + (seed % 480),
   };
-}
-
-const DEMO_PEOPLE = [
-  { first: "Anna", last: "Kowalska", title: "Head of Sales" },
-  { first: "Marcin", last: "Nowak", title: "VP Sales" },
-  { first: "Katarzyna", last: "Wisniewska", title: "Sales Director" },
-  { first: "Piotr", last: "Zielinski", title: "CEO" },
-  { first: "Tomasz", last: "Lewandowski", title: "Head of Growth" },
-  { first: "Agnieszka", last: "Wojcik", title: "Revenue Operations Manager" },
-];
-
-function demoContacts(
-  companyId: string,
-  domain: string,
-  targetTitles: string[]
-): Contact[] {
-  const seed = hashSeed(domain);
-  const picked = [
-    DEMO_PEOPLE[seed % DEMO_PEOPLE.length],
-    DEMO_PEOPLE[(seed + 2) % DEMO_PEOPLE.length],
-  ];
-  const contacts: Contact[] = picked.map((p, i) => ({
-    id: `contact_demo_${domain}_${i}`,
-    companyId,
-    firstName: p.first,
-    lastName: p.last,
-    title: p.title,
-    linkedinUrl: `https://www.linkedin.com/in/${p.first.toLowerCase()}-${p.last.toLowerCase()}`,
-    email: undefined,
-    emailStatus: "unknown",
-    emailSource: undefined,
-    apolloPersonId: undefined,
-    titleMatchScore: scoreTitle(p.title, targetTitles),
-    isPrimary: false,
-  }));
-  rankAndFlagPrimary(contacts);
-  return contacts;
-}
-
-function hashSeed(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
 }

@@ -26,6 +26,8 @@ export interface Contact {
   email?: string;
   emailStatus?: "verified" | "guessed" | "unknown";
   emailSource?: "apollo" | "snov" | "demo";
+  /** Where the person's name/title itself came from. */
+  contactSource?: "apollo" | "website" | "demo";
   apolloPersonId?: string;
   titleMatchScore: number;
   isPrimary: boolean;

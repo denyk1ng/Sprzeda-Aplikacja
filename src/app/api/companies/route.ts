@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { newId, readDb, updateDb } from "@/lib/store";
 import { enrichOrganization, findDecisionMakers } from "@/lib/apollo";
+import { discoverContactsFromWebsite } from "@/lib/discovery";
+import { demoContacts } from "@/lib/contact-utils";
 import { findAndVerifyEmail } from "@/lib/snov";
 import type { Company } from "@/lib/types";
 
@@ -48,12 +50,22 @@ export async function POST(req: NextRequest) {
     lastEnrichedAt: new Date().toISOString(),
   };
 
-  const contacts = await findDecisionMakers(
-    company.id,
-    company.domain,
-    company.apolloOrgId,
-    db.icp.targetTitles
-  );
+  // Waterfall: Apollo People Search (paid plans) -> our own website scraper
+  // (free, no key) -> demo placeholders, so the app still returns *something*
+  // useful when Apollo's contact search is plan-restricted.
+  const contacts =
+    (await findDecisionMakers(
+      company.id,
+      company.domain,
+      company.apolloOrgId,
+      db.icp.targetTitles
+    )) ??
+    (await discoverContactsFromWebsite(
+      company.id,
+      company.domain,
+      db.icp.targetTitles
+    )) ??
+    demoContacts(company.id, company.domain, db.icp.targetTitles);
 
   for (const contact of contacts) {
     if (!contact.email || contact.emailStatus !== "verified") {

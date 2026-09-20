@@ -130,7 +130,26 @@ export default function CompanyDetailPage() {
                         </span>
                       )}
                     </p>
-                    <p className="text-sm text-slate-600">{c.title}</p>
+                    <p className="text-sm text-slate-600">
+                      {c.title}{" "}
+                      {c.contactSource && (
+                        <span
+                          className={`badge ml-1 ${
+                            c.contactSource === "apollo"
+                              ? "bg-blue-100 text-blue-800"
+                              : c.contactSource === "website"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {c.contactSource === "apollo"
+                            ? "Apollo"
+                            : c.contactSource === "website"
+                            ? "strona firmy"
+                            : "demo"}
+                        </span>
+                      )}
+                    </p>
                     {c.email && (
                       <p className="text-xs text-slate-500">
                         {c.email}{" "}

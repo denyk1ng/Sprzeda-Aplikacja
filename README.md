@@ -15,11 +15,22 @@ proste narzedzie pod wlasny proces sprzedazowy.
 2. **Dodanie konta** (`/`) - wpisujesz domene firmy. Aplikacja:
    - pobiera dane o firmie (branza, wielkosc) - **Apollo Organization
      Enrichment**,
-   - wyszukuje osoby na stanowiskach z Twojego ICP i wybiera najlepiej
-     dopasowana - **Apollo People Search**,
-   - jesli Apollo nie ma zweryfikowanego e-maila, dogrywa go przez
-     **Snov.io** (Get emails from names + weryfikacja statusu) - to jest
-     "waterfall" znany z Clay.
+   - szuka osob na stanowiskach z Twojego ICP w nastepujacej kolejnosci
+     (waterfall):
+     1. **Apollo People Search** (wymaga platnego planu Apollo - na planie
+        Free ten endpoint zwraca 403 `API_INACCESSIBLE`),
+     2. jesli niedostepne: **wlasny skaner strony firmy** (`src/lib/discovery.ts`)
+        - bez zadnego klucza API czyta publiczna podstrone "About/Team/
+        Leadership" firmy i wyciaga realne imiona+stanowiska ze
+        strukturalnych danych (schema.org `Person`) lub typowego ukladu
+        kart zespolu,
+     3. jesli i to nic nie znajdzie: przykladowe dane demo (wyraznie
+        oznaczone w UI).
+   - jesli znaleziony kontakt nie ma zweryfikowanego e-maila, dogrywa go
+     przez **Snov.io** (Get emails from names + weryfikacja statusu) - to
+     jest "waterfall" znany z Clay.
+   - w UI kazdy kontakt ma etykiete zrodla (Apollo / strona firmy / demo),
+     zeby od razu bylo widac, czy to prawdziwa osoba.
 3. **Sledzenie sygnalow** (przycisk "Odswiez sygnaly" na karcie firmy) -
    sprawdza:
    - aktywne rekrutacje w firmie (**Apollo Job Postings**),
@@ -71,6 +82,8 @@ src/
     types.ts      - modele danych (Company, Contact, Signal, Recommendation, IcpProfile)
     store.ts       - prosty magazyn JSON
     apollo.ts       - integracja Apollo.io (org enrichment, people search, job postings)
+    discovery.ts     - wlasny, bezplatny skaner strony firmy (fallback, gdy Apollo People Search jest niedostepny)
+    contact-utils.ts - wspolne narzedzia do rankingu kontaktow (scoreTitle) i dane demo
     snov.ts         - integracja Snov.io (waterfall e-maili)
     news.ts         - darmowe zrodlo sygnalow (Google News RSS)
     signals.ts       - laczy Apollo job postings + news w liste sygnalow
@@ -92,6 +105,12 @@ src/
 - Snov.io endpoints zaimplementowano wedlug oficjalnej dokumentacji API -
   warto zweryfikowac dokladne nazwy pol po pierwszym realnym wywolaniu z
   Twoim kontem (limity/format moga sie nieznacznie roznic miedzy planami).
+- Wlasny skaner strony firmy (`discovery.ts`) dziala dobrze na typowych,
+  serwerowo renderowanych stronach "About/Team" (WordPress, Webflow itp.).
+  Na stronach mocno renderowanych po stronie klienta (ciezkie SPA) moze nie
+  znalezc nikogo i wtedy aplikacja spada do danych demo - to celowe,
+  bezpieczne zachowanie (nigdy nie pokazuje zgadywanych danych jako
+  pewnych).
 - Zaleznosc `next/node_modules/postcss` niesie ze soba znane, nisko-ryzykowne
   (w kontekscie tej aplikacji: brak next/image, custom serverow, i18n)
   advisory naprawione dopiero w Next 16 - do rozwazenia przy kolejnej
