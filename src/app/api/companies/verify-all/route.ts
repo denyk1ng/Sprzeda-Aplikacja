@@ -52,7 +52,7 @@ export async function POST() {
     const { level, reason } = computePriority(updated, contacts, [
       ...existingSignals,
       ...toAdd,
-    ]);
+    ], db.icp);
     updated.priority = level;
     updated.priorityReason = reason;
     updated.lastVerifiedAt = new Date().toISOString();

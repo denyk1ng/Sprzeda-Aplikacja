@@ -7,23 +7,26 @@ const DB_PATH = path.join(process.cwd(), "data", "db.json");
 const REDIS_KEY = "prospecting-copilot:db";
 
 const DEFAULT_ICP: IcpProfile = {
-  companyName: "Twoja firma",
+  companyName: "PIRSB - Polski Instytut Rozwoju Strategii Biznesowych",
   productDescription:
-    "Opisz tutaj krotko, co sprzedajesz i jaki problem rozwiazujesz klientom.",
+    "Bezplatna sesja diagnostyczna Mapa Wzrostu - pokazujemy wlascicielowi/zarzadowi firmy konkretne dzwignie wzrostu (rynek i strategia, maszyna wzrostu, czlowiek) oraz szkolenia z AI dla firm z dofinansowaniem unijnym.",
   valueProps: [
-    "Skracamy czas wdrozenia o 40%",
-    "Automatyzujemy powtarzalne procesy sprzedazowe",
+    "Bezplatna sesja diagnostyczna Mapa Wzrostu - konkretny plan wzrostu oparty o dane, nie domysly",
+    "Szkolenia z AI z dofinansowaniem - realny koszt wdrozenia blisko zera",
+    "Podejscie oparte o wzor Wartosc = Zysk x Mnoznik + Majatek, nie ogolniki",
   ],
   targetTitles: [
-    "Head of Sales",
-    "VP Sales",
-    "Sales Director",
+    "Prezes",
     "CEO",
-    "COO",
-    "Head of Growth",
-    "Revenue Operations Manager",
+    "Wlasciciel",
+    "Wspolwlasciciel",
+    "Dyrektor Zarzadzajacy",
+    "Dyrektor Generalny",
+    "Czlonek Zarzadu",
   ],
-  targetIndustries: ["SaaS", "E-commerce", "Fintech"],
+  // Celowo szerokie/puste - branza nie jest ograniczeniem (odp. #2 w specyfikacji).
+  targetIndustries: [],
+  cities: [],
 };
 
 function emptyDb(): Db {
@@ -38,7 +41,7 @@ function emptyDb(): Db {
 
 function fillDefaults(parsed: Partial<Db> | null | undefined): Db {
   return {
-    icp: parsed?.icp ?? DEFAULT_ICP,
+    icp: parsed?.icp ? { ...DEFAULT_ICP, ...parsed.icp } : DEFAULT_ICP,
     companies: parsed?.companies ?? [],
     contacts: parsed?.contacts ?? [],
     signals: parsed?.signals ?? [],

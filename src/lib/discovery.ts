@@ -76,7 +76,10 @@ async function findTeamPageUrls(baseUrl: string, html: string): Promise<string[]
 interface RawPersonFind {
   name: string;
   title: string;
+  phone?: string;
 }
+
+const TEL_RE = /tel:([+\d][\d\s\-()]{5,20})/i;
 
 function extractFromJsonLd(html: string): RawPersonFind[] {
   const found: RawPersonFind[] = [];
@@ -116,7 +119,9 @@ function collectPersons(
     const inferredTitle =
       !explicitTitle && parentKey === "founder" ? "Founder" : "";
     const title = explicitTitle || inferredTitle;
-    if (title) out.push({ name: obj.name, title });
+    const phone =
+      typeof obj.telephone === "string" ? obj.telephone.trim() : undefined;
+    if (title) out.push({ name: obj.name, title, phone });
   }
   for (const [key, value] of Object.entries(obj)) {
     if (value && typeof value === "object") collectPersons(value, out, key);
@@ -146,7 +151,9 @@ function extractFromHeuristics(html: string): RawPersonFind[] {
     if (!pMatch) continue;
     const title = pMatch[1].trim();
     if (!title || /^[\d\s,.\-]+$/.test(title)) continue;
-    found.push({ name, title });
+    const telMatch = tail.match(TEL_RE);
+    const phone = telMatch ? telMatch[1].trim() : undefined;
+    found.push({ name, title, phone });
     count++;
   }
   return found;
@@ -168,6 +175,7 @@ function toContact(
     firstName,
     lastName,
     title: person.title || "Nieznane stanowisko",
+    phone: person.phone,
     email: undefined,
     emailStatus: "unknown",
     emailSource: undefined,

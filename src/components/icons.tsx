@@ -203,6 +203,33 @@ export function Spinner(props: IconProps) {
   );
 }
 
+export function Phone(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M5.5 4h3l1.5 4.5-2 1.5a11 11 0 0 0 5 5l1.5-2 4.5 1.5v3a1.5 1.5 0 0 1-1.6 1.5A16 16 0 0 1 4 5.6 1.5 1.5 0 0 1 5.5 4Z" />
+    </svg>
+  );
+}
+
+export function Linkedin(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="2.5" />
+      <path d="M7.8 10v6.5M7.8 7.3v.1" />
+      <path d="M11.5 16.5V10M11.5 12.5c0-1.4 1-2.5 2.5-2.5s2.3 1 2.3 2.7v3.8" />
+    </svg>
+  );
+}
+
+export function Calendar(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="1.5" />
+      <path d="M3.5 9.5h17M8 3v4M16 3v4" />
+    </svg>
+  );
+}
+
 export function ScaleIcon(props: IconProps) {
   return (
     <svg {...base(props)}>

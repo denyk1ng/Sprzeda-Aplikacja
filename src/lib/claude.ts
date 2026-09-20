@@ -1,4 +1,4 @@
-import type { Company, Contact, IcpProfile, Signal } from "./types";
+import type { Channel, Company, Contact, IcpProfile, Signal } from "./types";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
@@ -12,9 +12,26 @@ function hasClaudeKey(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+const CHANNEL_LABEL: Record<Channel, string> = {
+  phone: "telefon",
+  email: "e-mail",
+  linkedin: "LinkedIn",
+};
+
+const CHANNEL_BRIEF: Record<Channel, string> = {
+  phone:
+    'krotki SKRYPT ROZMOWY telefonicznej (nie wiadomosc do wyslania) - 3-4 zdania: przedstawienie sie, powod telefonu nawiazujacy do sygnalu, jedno pytanie otwierajace rozmowe. Pisz w drugiej osobie, jakby ktos to czytal na glos.',
+  email:
+    "krotka, konkretna wiadomosc e-mail (max 100 slow) z jasnym tematem-hakiem w pierwszym zdaniu i jednym prostym CTA (np. 15-minutowa rozmowa).",
+  linkedin:
+    "krotka wiadomosc na LinkedIn (max 400 znakow, bardziej swobodny ton niz e-mail, bez 'Szanowny Panie/Pani'), z jednym prostym CTA.",
+};
+
 /**
  * Turns ICP + detected signal + primary contact into a concrete, personalized
- * outreach angle and message. Uses Claude when ANTHROPIC_API_KEY is set,
+ * outreach angle and message for a SPECIFIC channel (telefon -> e-mail ->
+ * LinkedIn is the preferred order per spec answer #14; content differs per
+ * channel per spec answer #15). Uses Claude when ANTHROPIC_API_KEY is set,
  * otherwise falls back to a deterministic template so the app still works
  * without any key configured.
  */
@@ -22,13 +39,14 @@ export async function generateRecommendation(
   icp: IcpProfile,
   company: Company,
   contact: Contact | undefined,
-  signal: Signal | undefined
+  signal: Signal | undefined,
+  channel: Channel
 ): Promise<RecommendationDraft> {
   if (!hasClaudeKey()) {
-    return templateRecommendation(icp, company, contact, signal);
+    return templateRecommendation(icp, company, contact, signal, channel);
   }
 
-  const prompt = buildPrompt(icp, company, contact, signal);
+  const prompt = buildPrompt(icp, company, contact, signal, channel);
   try {
     const res = await fetch(ANTHROPIC_URL, {
       method: "POST",
@@ -43,14 +61,14 @@ export async function generateRecommendation(
         messages: [{ role: "user", content: prompt }],
       }),
     });
-    if (!res.ok) return templateRecommendation(icp, company, contact, signal);
+    if (!res.ok) return templateRecommendation(icp, company, contact, signal, channel);
     const data = await res.json();
     const text: string = data.content?.[0]?.text ?? "";
     const { angle, message } = splitAngleAndMessage(text);
-    if (!message) return templateRecommendation(icp, company, contact, signal);
+    if (!message) return templateRecommendation(icp, company, contact, signal, channel);
     return { angle, message, generatedBy: "claude" };
   } catch {
-    return templateRecommendation(icp, company, contact, signal);
+    return templateRecommendation(icp, company, contact, signal, channel);
   }
 }
 
@@ -58,15 +76,17 @@ function buildPrompt(
   icp: IcpProfile,
   company: Company,
   contact: Contact | undefined,
-  signal: Signal | undefined
+  signal: Signal | undefined,
+  channel: Channel
 ): string {
   return `Jestes asystentem sprzedazy B2B. Na podstawie ponizszych danych napisz:
 1) Linia "ANGLE:" - jedno zdanie po polsku wyjasniajace, dlaczego TERAZ jest dobry moment na kontakt z tym klientem.
-2) Linia "MESSAGE:" - krotka, konkretna wiadomosc (email/LinkedIn, max 100 slow) po polsku, ktora:
-   - odwoluje sie do konkretnego sygnalu/wydarzenia u klienta,
-   - proponuje konkretne rozwiazanie oparte o nasz produkt,
-   - konczy sie jednym prostym CTA (np. 15-minutowa rozmowa).
+2) Linia "MESSAGE:" - ${CHANNEL_BRIEF[channel]} Po polsku. Musi:
+   - odwolywac sie do konkretnego sygnalu/wydarzenia u klienta,
+   - proponowac konkretne rozwiazanie oparte o nasz produkt.
 Nie dodawaj nic poza tymi dwiema liniami.
+
+KANAL KONTAKTU: ${CHANNEL_LABEL[channel]}
 
 NASZA FIRMA: ${icp.companyName}
 NASZ PRODUKT: ${icp.productDescription}
@@ -90,26 +110,36 @@ function templateRecommendation(
   icp: IcpProfile,
   company: Company,
   contact: Contact | undefined,
-  signal: Signal | undefined
+  signal: Signal | undefined,
+  channel: Channel
 ): RecommendationDraft {
   const name = contact ? contact.firstName : "Tam";
   const valueProp = icp.valueProps[0] ?? icp.productDescription;
+  const situationClause = signal
+    ? signalToClause(signal)
+    : `rozwija sie w obszarze, w ktorym ${icp.companyName} realnie pomaga`;
+  const angle = signal
+    ? `${company.name} pokazuje swiezy sygnal ("${signal.title}") - to naturalny pretekst do kontaktu zanim zrobi to konkurencja.`
+    : `Brak swiezego sygnalu, ale ${company.name} pasuje do naszego ICP (${company.industry ?? "branza docelowa"}, ${company.employeeCount ?? "?"} os.) - warto otworzyc rozmowe na bazie dopasowania.`;
 
-  if (signal) {
-    const angle = `${company.name} pokazuje swiezy sygnal ("${signal.title}") - to naturalny pretekst do kontaktu zanim zrobi to konkurencja.`;
-    const message =
+  let message: string;
+  if (channel === "phone") {
+    message =
+      `Dzien dobry, mowi [Twoje imie i nazwisko] z ${icp.companyName}. ` +
+      `Dzwonie, bo zauwazylem(am), ze ${company.name} ${situationClause} - ${valueProp}. ` +
+      `Czy to dobry moment na 2 minuty rozmowy, czy wolisz, zebym oddzwonil(a) pozniej?`;
+  } else if (channel === "linkedin") {
+    message =
+      `Czesc ${name}, widze ze ${company.name} ${situationClause}. ` +
+      `W ${icp.companyName} pomagamy firmom w podobnej sytuacji: ${valueProp}. ` +
+      `Masz 15 minut w tym tygodniu, zeby pogadac?`;
+  } else {
+    message =
       `Czesc ${name},\n\n` +
-      `Zauwazylem(am), ze ${company.name} ${signalToClause(signal)}. ` +
+      `Zauwazylem(am), ze ${company.name} ${situationClause}. ` +
       `W ${icp.companyName} pomagamy firmom w podobnej sytuacji: ${valueProp}.\n\n` +
       `Czy masz 15 minut w tym tygodniu, zeby pokazac, jak moglibysmy pomoc rowniez ${company.name}?`;
-    return { angle, message, generatedBy: "template" };
   }
-
-  const angle = `Brak swiezego sygnalu, ale ${company.name} pasuje do naszego ICP (${company.industry ?? "branza docelowa"}, ${company.employeeCount ?? "?"} os.) - warto otworzyc rozmowe na bazie dopasowania.`;
-  const message =
-    `Czesc ${name},\n\n` +
-    `Widze, ze ${company.name} rozwija sie w obszarze, w ktorym ${icp.companyName} realnie pomaga: ${valueProp}.\n\n` +
-    `Czy masz 15 minut w tym tygodniu na krotka rozmowe?`;
   return { angle, message, generatedBy: "template" };
 }
 

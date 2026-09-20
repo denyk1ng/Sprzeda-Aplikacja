@@ -83,7 +83,7 @@ export default function IcpPage() {
             />
           </Field>
         </div>
-        <Field label="Docelowe branze" hint="jedna na linie">
+        <Field label="Docelowe branze" hint="opcjonalnie - puste = wszystkie branze">
           <textarea
             className="input min-h-[70px]"
             value={icp.targetIndustries.join("\n")}
@@ -92,6 +92,45 @@ export default function IcpPage() {
             }
           />
         </Field>
+        <div className="grid gap-5 sm:grid-cols-3">
+          <Field label="Min. liczba pracownikow" hint="opcjonalnie">
+            <input
+              type="number"
+              min={0}
+              className="input"
+              value={icp.minEmployees ?? ""}
+              onChange={(e) =>
+                setIcp({
+                  ...icp,
+                  minEmployees: e.target.value ? Number(e.target.value) : undefined,
+                })
+              }
+            />
+          </Field>
+          <Field label="Maks. liczba pracownikow" hint="opcjonalnie">
+            <input
+              type="number"
+              min={0}
+              className="input"
+              value={icp.maxEmployees ?? ""}
+              onChange={(e) =>
+                setIcp({
+                  ...icp,
+                  maxEmployees: e.target.value ? Number(e.target.value) : undefined,
+                })
+              }
+            />
+          </Field>
+          <Field label="Miasta" hint="jedno na linie, puste = cala Polska">
+            <textarea
+              className="input min-h-[42px]"
+              value={icp.cities.join("\n")}
+              onChange={(e) =>
+                setIcp({ ...icp, cities: e.target.value.split("\n").filter(Boolean) })
+              }
+            />
+          </Field>
+        </div>
         <div className="flex items-center gap-3 border-t border-ink-100 pt-4">
           <button type="submit" disabled={saving} className="btn btn-primary">
             {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : null}

@@ -23,6 +23,7 @@ export interface Contact {
   lastName: string;
   title: string;
   linkedinUrl?: string;
+  phone?: string;
   email?: string;
   emailStatus?: "verified" | "guessed" | "unknown";
   emailSource?: "apollo" | "snov" | "demo";
@@ -35,12 +36,28 @@ export interface Contact {
 
 export type Priority = "high" | "medium" | "low";
 
+/**
+ * Manual pipeline stage - the user drives this by hand (on-demand, one
+ * click at a time), there is no automatic day-count sequence: see the 20
+ * spec answers, #13 ("zależne jest od przycisku, żebym samemu sobie
+ * działał") and #16 ("ja samemu to zrobię").
+ */
+export type Stage =
+  | "nowy"
+  | "w_kontakcie"
+  | "umowiona_rozmowa"
+  | "wygrany"
+  | "przegrany";
+
+export type Channel = "phone" | "email" | "linkedin";
+
 export interface Company {
   id: string;
   name: string;
   domain: string;
   industry?: string;
   employeeCount?: number;
+  city?: string;
   apolloOrgId?: string;
   createdAt: string;
   lastEnrichedAt?: string;
@@ -48,6 +65,9 @@ export interface Company {
   lastVerifiedAt?: string;
   priority?: Priority;
   priorityReason?: string;
+  stage?: Stage;
+  nextStepAt?: string;
+  nextStepNote?: string;
   /** Optional, manually-entered KRS registry facts (see src/lib/krs.ts). */
   krsNumber?: string;
   krsLegalForm?: string;
@@ -64,6 +84,7 @@ export interface Recommendation {
   companyId: string;
   contactId?: string;
   signalId?: string;
+  channel: Channel;
   angle: string;
   message: string;
   createdAt: string;
@@ -76,6 +97,10 @@ export interface IcpProfile {
   valueProps: string[];
   targetTitles: string[];
   targetIndustries: string[];
+  /** Optional size/location filters - all ranges are inclusive, unset = no limit. */
+  minEmployees?: number;
+  maxEmployees?: number;
+  cities: string[];
 }
 
 export interface Db {

@@ -16,6 +16,9 @@ export async function PUT(req: NextRequest) {
       valueProps: body.valueProps ?? d.icp.valueProps,
       targetTitles: body.targetTitles ?? d.icp.targetTitles,
       targetIndustries: body.targetIndustries ?? d.icp.targetIndustries,
+      minEmployees: body.minEmployees ?? d.icp.minEmployees,
+      maxEmployees: body.maxEmployees ?? d.icp.maxEmployees,
+      cities: body.cities ?? d.icp.cities,
     };
   });
   return NextResponse.json(db.icp);

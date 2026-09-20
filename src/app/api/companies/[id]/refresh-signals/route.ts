@@ -24,7 +24,7 @@ export async function POST(
   const { level, reason } = computePriority(company, contacts, [
     ...existingSignals,
     ...toAdd,
-  ]);
+  ], db.icp);
 
   await updateDb((d) => {
     d.signals.push(...toAdd);

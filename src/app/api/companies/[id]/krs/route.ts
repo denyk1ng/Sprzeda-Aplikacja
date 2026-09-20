@@ -39,7 +39,7 @@ export async function POST(
     krsLegalFlag: facts.legalFlag,
     krsCheckedAt: new Date().toISOString(),
   };
-  const { level, reason } = computePriority(updated, contacts, signals);
+  const { level, reason } = computePriority(updated, contacts, signals, db.icp);
   updated.priority = level;
   updated.priorityReason = reason;
 

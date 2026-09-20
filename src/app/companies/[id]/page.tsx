@@ -3,18 +3,29 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import type { Company, Contact, Priority, Recommendation, Signal } from "@/lib/types";
+import type {
+  Channel,
+  Company,
+  Contact,
+  Priority,
+  Recommendation,
+  Signal,
+  Stage,
+} from "@/lib/types";
 import { Markdown } from "@/components/Markdown";
 import {
   AlertTriangle,
   ArrowUpRight,
   Briefcase,
+  Calendar,
   Check,
   ChevronRight,
   Copy,
   DollarSign,
+  Linkedin,
   Mail,
   Newspaper,
+  Phone,
   RefreshCw,
   ScaleIcon,
   Search,
@@ -73,6 +84,23 @@ const SIGNAL_META: Record<
   },
 };
 
+const CHANNEL_META: Record<Channel, { label: string; icon: React.ReactNode }> = {
+  phone: { label: "Telefon", icon: <Phone className="h-3.5 w-3.5" /> },
+  email: { label: "E-mail", icon: <Mail className="h-3.5 w-3.5" /> },
+  linkedin: { label: "LinkedIn", icon: <Linkedin className="h-3.5 w-3.5" /> },
+};
+
+// Kolejnosc preferowana wg specyfikacji (odp. #14): telefon -> e-mail -> LinkedIn.
+const CHANNEL_ORDER: Channel[] = ["phone", "email", "linkedin"];
+
+const STAGE_LABEL: Record<Stage, string> = {
+  nowy: "Nowy",
+  w_kontakcie: "W kontakcie",
+  umowiona_rozmowa: "Umowiona rozmowa",
+  wygrany: "Wygrany",
+  przegrany: "Przegrany",
+};
+
 const CONTACT_SOURCE_BADGE: Record<string, string> = {
   apollo: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
   website: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
@@ -111,6 +139,9 @@ export default function CompanyDetailPage() {
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [savingStage, setSavingStage] = useState(false);
+  const [nextStepAt, setNextStepAt] = useState("");
+  const [nextStepNote, setNextStepNote] = useState("");
 
   async function load() {
     const res = await fetch(`/api/companies/${params.id}`);
@@ -118,7 +149,10 @@ export default function CompanyDetailPage() {
       setData(null);
       return;
     }
-    setData(await res.json());
+    const body = (await res.json()) as DetailResponse;
+    setData(body);
+    setNextStepAt(body.company.nextStepAt?.slice(0, 10) ?? "");
+    setNextStepNote(body.company.nextStepNote ?? "");
   }
 
   useEffect(() => {
@@ -133,15 +167,30 @@ export default function CompanyDetailPage() {
     setRefreshing(false);
   }
 
-  async function generateRecommendation(signalId?: string) {
-    setGeneratingFor(signalId ?? "general");
+  async function generateRecommendation(signalId?: string, channel?: Channel) {
+    setGeneratingFor(`${signalId ?? "general"}:${channel ?? "all"}`);
     await fetch(`/api/companies/${params.id}/recommend`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ signalId }),
+      body: JSON.stringify({ signalId, channel }),
     });
     await load();
     setGeneratingFor(null);
+  }
+
+  async function saveStage(patch: {
+    stage?: Stage;
+    nextStepAt?: string;
+    nextStepNote?: string;
+  }) {
+    setSavingStage(true);
+    await fetch(`/api/companies/${params.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    await load();
+    setSavingStage(false);
   }
 
   async function checkKrs(e: React.FormEvent) {
@@ -233,6 +282,64 @@ export default function CompanyDetailPage() {
           <Trash className="h-3.5 w-3.5" />
           Usun
         </button>
+      </section>
+
+      <section className="card p-5 sm:p-6">
+        <div className="mb-3 flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-ink-400" />
+          <h2 className="section-title">Status i nastepny krok</h2>
+        </div>
+        <p className="mb-3 text-xs text-ink-500">
+          Ty prowadzisz ten proces recznie - narzedzie tylko zapamietuje, na
+          jakim jest etapie i kiedy chcesz wrocic do kontaktu.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="label">Etap</span>
+            <select
+              className="input"
+              value={company.stage ?? "nowy"}
+              onChange={(e) => saveStage({ stage: e.target.value as Stage })}
+              disabled={savingStage}
+            >
+              {Object.entries(STAGE_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="label">Nastepny krok - data</span>
+            <input
+              type="date"
+              className="input"
+              value={nextStepAt}
+              onChange={(e) => setNextStepAt(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-1 min-w-[180px] flex-col gap-1.5">
+            <span className="label">Notatka</span>
+            <input
+              className="input"
+              placeholder="np. oddzwonic po 15:00"
+              value={nextStepNote}
+              onChange={(e) => setNextStepNote(e.target.value)}
+            />
+          </label>
+          <button
+            onClick={() =>
+              saveStage({
+                nextStepAt: (nextStepAt || null) as unknown as string | undefined,
+                nextStepNote: (nextStepNote || null) as unknown as string | undefined,
+              })
+            }
+            disabled={savingStage}
+            className="btn btn-secondary"
+          >
+            {savingStage ? "Zapisuje..." : "Zapisz"}
+          </button>
+        </div>
       </section>
 
       <section className="card p-5 sm:p-6">
@@ -367,6 +474,14 @@ export default function CompanyDetailPage() {
                       </span>
                     )}
                   </p>
+                  {c.phone && (
+                    <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-medium text-ink-600">
+                      <Phone className="h-3 w-3" />
+                      <a href={`tel:${c.phone}`} className="hover:underline">
+                        {c.phone}
+                      </a>
+                    </p>
+                  )}
                   {c.email && (
                     <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-ink-400">
                       <Mail className="h-3 w-3" />
@@ -438,14 +553,23 @@ export default function CompanyDetailPage() {
                       </p>
                       <p className="mt-0.5 text-[13px] text-ink-500">{s.description}</p>
                     </div>
-                    <button
-                      onClick={() => generateRecommendation(s.id)}
-                      disabled={generatingFor === s.id}
-                      className="btn btn-primary shrink-0"
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      {generatingFor === s.id ? "Generuje..." : "Zaproponuj kontakt"}
-                    </button>
+                    <div className="flex shrink-0 flex-wrap gap-1.5">
+                      {CHANNEL_ORDER.map((channel) => {
+                        const key = `${s.id}:${channel}`;
+                        return (
+                          <button
+                            key={channel}
+                            onClick={() => generateRecommendation(s.id, channel)}
+                            disabled={generatingFor === key}
+                            className="btn btn-secondary !px-2.5 !py-1.5 text-xs"
+                            title={`Wygeneruj tresc na ${CHANNEL_META[channel].label}`}
+                          >
+                            {CHANNEL_META[channel].icon}
+                            {generatingFor === key ? "..." : CHANNEL_META[channel].label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               );
@@ -453,14 +577,24 @@ export default function CompanyDetailPage() {
           </div>
         )}
         {signals.length === 0 && (
-          <button
-            onClick={() => generateRecommendation(undefined)}
-            disabled={generatingFor === "general"}
-            className="btn btn-primary mt-3"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            {generatingFor === "general" ? "Generuje..." : "Zaproponuj kontakt bez sygnalu"}
-          </button>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {CHANNEL_ORDER.map((channel) => {
+              const key = `general:${channel}`;
+              return (
+                <button
+                  key={channel}
+                  onClick={() => generateRecommendation(undefined, channel)}
+                  disabled={generatingFor === key}
+                  className="btn btn-primary"
+                >
+                  {CHANNEL_META[channel].icon}
+                  {generatingFor === key
+                    ? "Generuje..."
+                    : `${CHANNEL_META[channel].label} bez sygnalu`}
+                </button>
+              );
+            })}
+          </div>
         )}
       </section>
 
@@ -480,10 +614,16 @@ export default function CompanyDetailPage() {
               <div key={r.id} className="rounded-xl border border-ink-100 p-4">
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <p className="text-[13px] font-semibold text-ink-700">{r.angle}</p>
-                  <span className="badge shrink-0 bg-ink-100 text-ink-500">
-                    {r.generatedBy === "claude" && <Sparkles className="h-3 w-3" />}
-                    {r.generatedBy === "claude" ? "Claude" : "szablon"}
-                  </span>
+                  <div className="flex shrink-0 gap-1.5">
+                    <span className="badge bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200">
+                      {CHANNEL_META[r.channel]?.icon}
+                      {CHANNEL_META[r.channel]?.label ?? r.channel}
+                    </span>
+                    <span className="badge bg-ink-100 text-ink-500">
+                      {r.generatedBy === "claude" && <Sparkles className="h-3 w-3" />}
+                      {r.generatedBy === "claude" ? "Claude" : "szablon"}
+                    </span>
+                  </div>
                 </div>
                 <div className="rounded-lg bg-ink-50/70 p-3.5">
                   <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-ink-800">

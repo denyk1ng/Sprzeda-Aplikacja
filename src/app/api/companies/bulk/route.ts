@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     try {
       const company = await buildCompanyFromDomain(domain, undefined);
       const contacts = await enrichCompanyContacts(company, db.icp.targetTitles);
-      const { level, reason } = computePriority(company, contacts, []);
+      const { level, reason } = computePriority(company, contacts, [], db.icp);
       company.priority = level;
       company.priorityReason = reason;
       company.lastVerifiedAt = new Date().toISOString();

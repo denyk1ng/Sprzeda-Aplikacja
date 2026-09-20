@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readDb, updateDb } from "@/lib/store";
+import type { Stage } from "@/lib/types";
 
 export async function GET(
   _req: NextRequest,
@@ -20,6 +21,36 @@ export async function GET(
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
   return NextResponse.json({ company, contacts, signals, recommendations });
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const body = (await req.json().catch(() => ({}))) as {
+    stage?: Stage;
+    nextStepAt?: string | null;
+    nextStepNote?: string | null;
+  };
+
+  const db = await updateDb((d) => {
+    const company = d.companies.find((c) => c.id === id);
+    if (!company) return;
+    if (body.stage !== undefined) company.stage = body.stage;
+    if (body.nextStepAt !== undefined) {
+      company.nextStepAt = body.nextStepAt ?? undefined;
+    }
+    if (body.nextStepNote !== undefined) {
+      company.nextStepNote = body.nextStepNote ?? undefined;
+    }
+  });
+
+  const company = db.companies.find((c) => c.id === id);
+  if (!company) {
+    return NextResponse.json({ error: "Nie znaleziono firmy" }, { status: 404 });
+  }
+  return NextResponse.json(company);
 }
 
 export async function DELETE(

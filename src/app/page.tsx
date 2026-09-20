@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Company, Priority } from "@/lib/types";
+import type { HiringLead } from "@/lib/job-signals";
 import {
+  Briefcase,
   Building,
   ChevronRight,
   Plus,
   RefreshCw,
+  Search,
   Sparkles,
   TrendingUp,
   Users,
@@ -46,6 +49,12 @@ export default function DashboardPage() {
 
   const [verifying, setVerifying] = useState(false);
   const [verifySummary, setVerifySummary] = useState<string | null>(null);
+
+  const [jobKeyword, setJobKeyword] = useState("");
+  const [jobLeads, setJobLeads] = useState<HiringLead[] | null>(null);
+  const [jobSearching, setJobSearching] = useState(false);
+  const [jobError, setJobError] = useState<string | null>(null);
+  const [addingLead, setAddingLead] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -130,6 +139,42 @@ export default function DashboardPage() {
     setVerifySummary(
       `Zweryfikowano ${data.results.length} kont - nowych sygnalow: ${newSignalsTotal}, wysoki priorytet: ${highCount}.`
     );
+    await load();
+  }
+
+  async function searchJobs(e: React.FormEvent) {
+    e.preventDefault();
+    setJobSearching(true);
+    setJobError(null);
+    const res = await fetch("/api/discover/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keyword: jobKeyword || undefined }),
+    });
+    const data = await res.json();
+    setJobSearching(false);
+    if (!res.ok) {
+      setJobError(data.error ?? "Nie udalo sie przeszukac ofert pracy");
+      setJobLeads(null);
+      return;
+    }
+    setJobLeads(data.leads);
+  }
+
+  async function addLead(lead: HiringLead) {
+    setAddingLead(lead.company);
+    const res = await fetch("/api/discover/jobs/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyName: lead.company, roleTitle: lead.roleTitle }),
+    });
+    const data = await res.json();
+    setAddingLead(null);
+    if (!res.ok) {
+      setJobError(data.error ?? "Nie udalo sie dodac firmy");
+      return;
+    }
+    setJobLeads((prev) => prev?.filter((l) => l.company !== lead.company) ?? null);
     await load();
   }
 
@@ -229,6 +274,67 @@ export default function DashboardPage() {
         )}
       </section>
 
+      <section className="card p-5 sm:p-6">
+        <div className="flex items-center gap-2">
+          <Briefcase className="h-4 w-4 text-ink-400" />
+          <h2 className="section-title">Znajdz firmy, ktore wlasnie rekrutuja</h2>
+        </div>
+        <p className="mt-1 text-xs text-ink-500">
+          Aktywna rekrutacja to jeden z najsilniejszych sygnalow, ze warto
+          uderzyc teraz. Zrodlo: publiczne oferty IT/AI (nofluffjobs.com) -
+          nie pokryje kazdej branzy, ale dziala bez klucza API. Filtr miast
+          bierze sie z profilu ICP.
+        </p>
+        <form onSubmit={searchJobs} className="mt-4 flex flex-wrap gap-3">
+          <input
+            className="input flex-1 min-w-[180px]"
+            placeholder='Slowo kluczowe w nazwie stanowiska, np. "AI", "manager"'
+            value={jobKeyword}
+            onChange={(e) => setJobKeyword(e.target.value)}
+          />
+          <button type="submit" disabled={jobSearching} className="btn btn-primary">
+            {jobSearching ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Search className="h-3.5 w-3.5" />
+            )}
+            {jobSearching ? "Szukam..." : "Szukaj"}
+          </button>
+        </form>
+        {jobError && <p className="mt-2 text-sm text-red-600">{jobError}</p>}
+        {jobLeads && (
+          <div className="mt-4 flex flex-col gap-2">
+            {jobLeads.length === 0 ? (
+              <p className="text-sm text-ink-500">Brak wynikow dla tych kryteriow.</p>
+            ) : (
+              jobLeads.map((lead) => (
+                <div
+                  key={lead.company}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ink-100 px-3.5 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-ink-900">{lead.company}</p>
+                    <p className="text-[13px] text-ink-500">
+                      {lead.roleTitle}
+                      {lead.city ? ` - ${lead.city}` : ""}
+                      {lead.openRoles > 1 ? ` - ${lead.openRoles} ofert` : ""}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => addLead(lead)}
+                    disabled={addingLead === lead.company}
+                    className="btn btn-secondary shrink-0"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {addingLead === lead.company ? "Dodaje..." : "Dodaj"}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </section>
+
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="section-title">
@@ -293,6 +399,12 @@ export default function DashboardPage() {
                 </div>
                 {c.priorityReason && (
                   <p className="mt-2.5 line-clamp-2 text-xs text-ink-400">{c.priorityReason}</p>
+                )}
+                {c.nextStepAt && (
+                  <p className="mt-1.5 text-xs font-medium text-brand-600">
+                    Nastepny krok: {new Date(c.nextStepAt).toLocaleDateString("pl-PL")}
+                    {c.nextStepNote ? ` - ${c.nextStepNote}` : ""}
+                  </p>
                 )}
               </Link>
             ))}
