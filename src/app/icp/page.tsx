@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { IcpProfile } from "@/lib/types";
+import { Check, RefreshCw, Sparkles } from "@/components/icons";
 
 export default function IcpPage() {
   const [icp, setIcp] = useState<IcpProfile | null>(null);
@@ -31,16 +32,23 @@ export default function IcpPage() {
     }
   }
 
-  if (!icp) return <p className="text-sm text-slate-500">Wczytywanie...</p>;
+  if (!icp) return <div className="card h-64 animate-pulse bg-ink-50" />;
 
   return (
-    <div className="card">
-      <h1 className="mb-1 text-xl font-bold">Profil ICP i oferta</h1>
-      <p className="mb-4 text-sm text-slate-600">
-        Te dane sa uzywane do wyszukiwania wlasciwej osoby decyzyjnej (Apollo)
-        oraz do generowania spersonalizowanych rekomendacji kontaktu.
-      </p>
-      <form onSubmit={save} className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6 animate-in">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+          <Sparkles className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-ink-900">Profil ICP i oferta</h1>
+          <p className="text-sm text-ink-500">
+            Uzywane do wyszukiwania decydentow i generowania rekomendacji.
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={save} className="card flex flex-col gap-5 p-5 sm:p-6">
         <Field label="Nazwa Twojej firmy">
           <input
             className="input"
@@ -52,77 +60,68 @@ export default function IcpPage() {
           <textarea
             className="input min-h-[90px]"
             value={icp.productDescription}
-            onChange={(e) =>
-              setIcp({ ...icp, productDescription: e.target.value })
-            }
+            onChange={(e) => setIcp({ ...icp, productDescription: e.target.value })}
           />
         </Field>
-        <Field label="Kluczowe korzysci (jedna na linie)">
-          <textarea
-            className="input min-h-[70px]"
-            value={icp.valueProps.join("\n")}
-            onChange={(e) =>
-              setIcp({
-                ...icp,
-                valueProps: e.target.value.split("\n").filter(Boolean),
-              })
-            }
-          />
-        </Field>
-        <Field label="Docelowe stanowiska decyzyjne (jedno na linie)">
-          <textarea
-            className="input min-h-[110px]"
-            value={icp.targetTitles.join("\n")}
-            onChange={(e) =>
-              setIcp({
-                ...icp,
-                targetTitles: e.target.value.split("\n").filter(Boolean),
-              })
-            }
-          />
-        </Field>
-        <Field label="Docelowe branze (jedna na linie)">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Kluczowe korzysci" hint="jedna na linie">
+            <textarea
+              className="input min-h-[110px]"
+              value={icp.valueProps.join("\n")}
+              onChange={(e) =>
+                setIcp({ ...icp, valueProps: e.target.value.split("\n").filter(Boolean) })
+              }
+            />
+          </Field>
+          <Field label="Docelowe stanowiska decyzyjne" hint="jedno na linie">
+            <textarea
+              className="input min-h-[110px]"
+              value={icp.targetTitles.join("\n")}
+              onChange={(e) =>
+                setIcp({ ...icp, targetTitles: e.target.value.split("\n").filter(Boolean) })
+              }
+            />
+          </Field>
+        </div>
+        <Field label="Docelowe branze" hint="jedna na linie">
           <textarea
             className="input min-h-[70px]"
             value={icp.targetIndustries.join("\n")}
             onChange={(e) =>
-              setIcp({
-                ...icp,
-                targetIndustries: e.target.value.split("\n").filter(Boolean),
-              })
+              setIcp({ ...icp, targetIndustries: e.target.value.split("\n").filter(Boolean) })
             }
           />
         </Field>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 border-t border-ink-100 pt-4">
           <button type="submit" disabled={saving} className="btn btn-primary">
+            {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : null}
             {saving ? "Zapisuje..." : "Zapisz profil"}
           </button>
-          {saved && <span className="text-sm text-green-600">Zapisano.</span>}
+          {saved && (
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
+              <Check className="h-3.5 w-3.5" /> Zapisano
+            </span>
+          )}
         </div>
       </form>
-      <style jsx>{`
-        .input {
-          width: 100%;
-          border-radius: 0.5rem;
-          border: 1px solid #cbd5e1;
-          padding: 0.5rem 0.75rem;
-          font-size: 0.875rem;
-        }
-      `}</style>
     </div>
   );
 }
 
 function Field({
   label,
+  hint,
   children,
 }: {
   label: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+    <label className="flex flex-col gap-1.5">
+      <span className="label">
+        {label} {hint && <span className="font-normal text-ink-400">({hint})</span>}
+      </span>
       {children}
     </label>
   );

@@ -54,6 +54,9 @@ export interface Company {
   krsRegisteredAt?: string;
   krsLegalFlag?: "w_likwidacji" | "upadlosc";
   krsCheckedAt?: string;
+  /** Deep web research dossier (see src/lib/research.ts). */
+  webResearch?: string;
+  webResearchAt?: string;
 }
 
 export interface Recommendation {

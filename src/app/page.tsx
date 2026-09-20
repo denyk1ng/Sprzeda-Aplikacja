@@ -1,8 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Company, Priority } from "@/lib/types";
+import {
+  Building,
+  ChevronRight,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  TrendingUp,
+  Users,
+} from "@/components/icons";
 
 const PRIORITY_LABEL: Record<Priority, string> = {
   high: "Wysoki priorytet",
@@ -10,10 +19,16 @@ const PRIORITY_LABEL: Record<Priority, string> = {
   low: "Niski priorytet",
 };
 
-const PRIORITY_COLOR: Record<Priority, string> = {
-  high: "bg-green-100 text-green-800",
-  medium: "bg-amber-100 text-amber-800",
-  low: "bg-slate-200 text-slate-700",
+const PRIORITY_DOT: Record<Priority, string> = {
+  high: "bg-emerald-500",
+  medium: "bg-amber-500",
+  low: "bg-ink-300",
+};
+
+const PRIORITY_BADGE: Record<Priority, string> = {
+  high: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
+  medium: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
+  low: "bg-ink-100 text-ink-500 ring-1 ring-inset ring-ink-200",
 };
 
 export default function DashboardPage() {
@@ -43,6 +58,13 @@ export default function DashboardPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const stats = useMemo(() => {
+    const high = companies.filter((c) => c.priority === "high").length;
+    const medium = companies.filter((c) => c.priority === "medium").length;
+    const low = companies.filter((c) => c.priority === "low").length;
+    return { total: companies.length, high, medium, low };
+  }, [companies]);
 
   async function addCompany(e: React.FormEvent) {
     e.preventDefault();
@@ -84,7 +106,7 @@ export default function DashboardPage() {
       return;
     }
     setBulkSummary(
-      `Dodano: ${data.added.length}, pominieto (juz na liscie): ${data.skipped.length}, bledy: ${data.failed.length}.`
+      `Dodano ${data.added.length}, pominieto ${data.skipped.length}, bledy: ${data.failed.length}.`
     );
     setBulkText("");
     await load();
@@ -106,35 +128,68 @@ export default function DashboardPage() {
       0
     );
     setVerifySummary(
-      `Zweryfikowano ${data.results.length} kont. Nowych sygnalow: ${newSignalsTotal}. Wysoki priorytet: ${highCount}.`
+      `Zweryfikowano ${data.results.length} kont - nowych sygnalow: ${newSignalsTotal}, wysoki priorytet: ${highCount}.`
     );
     await load();
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <section className="card">
-        <h1 className="mb-1 text-xl font-bold">Konta docelowe</h1>
-        <p className="mb-4 text-sm text-slate-600">
-          Dodaj firme po domenie. Automatycznie znajdziemy wlasciwa osobe
-          decyzyjna (Apollo -&gt; nasz wlasny skaner strony firmy -&gt; demo),
-          dobierzemy e-mail (Snov.io waterfall) i wyliczymy priorytet kontaktu.
+    <div className="flex flex-col gap-7 animate-in">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-ink-900">
+          Konta docelowe
+        </h1>
+        <p className="mt-1 text-sm text-ink-500">
+          Dodaj firme po domenie - znajdziemy kontakt, sygnaly i priorytet.
         </p>
-        <form onSubmit={addCompany} className="flex flex-wrap gap-3">
+      </div>
+
+      {!loading && companies.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard icon={<Building className="h-4 w-4" />} label="Wszystkie konta" value={stats.total} />
+          <StatCard
+            icon={<TrendingUp className="h-4 w-4" />}
+            label="Wysoki priorytet"
+            value={stats.high}
+            tone="emerald"
+          />
+          <StatCard
+            icon={<Sparkles className="h-4 w-4" />}
+            label="Sredni priorytet"
+            value={stats.medium}
+            tone="amber"
+          />
+          <StatCard icon={<Users className="h-4 w-4" />} label="Niski priorytet" value={stats.low} />
+        </div>
+      )}
+
+      <section className="card p-5 sm:p-6">
+        <h2 className="section-title">Dodaj konto</h2>
+        <p className="mt-1 text-sm text-ink-500">
+          Automatycznie znajdziemy wlasciwa osobe decyzyjna (Apollo -&gt;
+          skaner strony firmy -&gt; demo), dobierzemy e-mail i wyliczymy
+          priorytet kontaktu.
+        </p>
+        <form onSubmit={addCompany} className="mt-4 flex flex-wrap gap-3">
           <input
-            className="flex-1 min-w-[180px] rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="input flex-1 min-w-[180px]"
             placeholder="Nazwa firmy (opcjonalnie)"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <input
             required
-            className="flex-1 min-w-[180px] rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="input flex-1 min-w-[180px]"
             placeholder="Domena, np. acme.com"
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
           />
           <button type="submit" disabled={adding} className="btn btn-primary">
+            {adding ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" />
+            )}
             {adding ? "Dodaje..." : "Dodaj i wzbogac"}
           </button>
         </form>
@@ -143,19 +198,22 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={() => setShowBulk((v) => !v)}
-          className="mt-3 text-sm font-medium text-blue-600 hover:underline"
+          className="mt-4 inline-flex items-center gap-1 text-[13px] font-semibold text-brand-600 hover:text-brand-700"
         >
+          <ChevronRight
+            className={`h-3.5 w-3.5 transition-transform ${showBulk ? "rotate-90" : ""}`}
+          />
           {showBulk ? "Ukryj dodawanie hurtowe" : "Dodaj wiele firm naraz"}
         </button>
         {showBulk && (
-          <form onSubmit={addBulk} className="mt-3 flex flex-col gap-2">
+          <form onSubmit={addBulk} className="mt-3 flex flex-col gap-2 border-t border-ink-100 pt-4">
             <textarea
-              className="min-h-[110px] rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="input min-h-[110px]"
               placeholder={"Wklej domeny, jedna na linie, np.:\nacme.com\nfirma2.pl\nklient3.com"}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
             />
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="submit"
                 disabled={bulkBusy || !bulkText.trim()}
@@ -164,7 +222,7 @@ export default function DashboardPage() {
                 {bulkBusy ? "Dodaje wszystkie..." : "Dodaj wszystkie (max 30)"}
               </button>
               {bulkSummary && (
-                <span className="text-sm text-slate-600">{bulkSummary}</span>
+                <span className="text-sm text-ink-500">{bulkSummary}</span>
               )}
             </div>
           </form>
@@ -173,65 +231,104 @@ export default function DashboardPage() {
 
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">
-            Lista kont {loading ? "" : `(${companies.length})`}
+          <h2 className="section-title">
+            Lista kont {!loading && `(${companies.length})`}
           </h2>
           {companies.length > 0 && (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={verifyAll}
-                disabled={verifying}
-                className="btn btn-secondary"
-              >
-                {verifying ? "Weryfikuje wszystko..." : "Weryfikuj wszystko"}
-              </button>
-            </div>
+            <button onClick={verifyAll} disabled={verifying} className="btn btn-secondary">
+              <RefreshCw className={`h-3.5 w-3.5 ${verifying ? "animate-spin" : ""}`} />
+              {verifying ? "Weryfikuje wszystko..." : "Weryfikuj wszystko"}
+            </button>
           )}
         </div>
         {verifySummary && (
-          <p className="mb-3 text-sm text-slate-600">{verifySummary}</p>
+          <p className="mb-3 text-sm text-ink-500">{verifySummary}</p>
         )}
         {loading ? (
-          <p className="text-sm text-slate-500">Wczytywanie...</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[0, 1].map((i) => (
+              <div key={i} className="card h-28 animate-pulse bg-ink-50" />
+            ))}
+          </div>
         ) : companies.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            Brak kont. Dodaj pierwsza firme powyzej.
-          </p>
+          <div className="card flex flex-col items-center gap-2 px-6 py-14 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+              <Building className="h-5 w-5" />
+            </span>
+            <p className="text-sm font-medium text-ink-700">Brak kont</p>
+            <p className="text-sm text-ink-500">
+              Dodaj pierwsza firme w formularzu powyzej.
+            </p>
+          </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {companies.map((c) => (
               <Link
                 key={c.id}
                 href={`/companies/${c.id}`}
-                className="card block transition hover:border-slate-400"
+                className="card card-hover animate-in block p-4"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold">{c.name}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink-100 text-ink-500">
+                      <Building className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <p className="font-semibold text-ink-900">{c.name}</p>
+                      <p className="text-[13px] text-ink-500">{c.domain}</p>
+                    </div>
+                  </div>
                   {c.priority && (
-                    <span className={`badge shrink-0 ${PRIORITY_COLOR[c.priority]}`}>
+                    <span className={`badge shrink-0 ${PRIORITY_BADGE[c.priority]}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${PRIORITY_DOT[c.priority]}`} />
                       {PRIORITY_LABEL[c.priority]}
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-slate-500">{c.domain}</p>
-                <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                  {c.industry && (
-                    <span className="badge bg-slate-100">{c.industry}</span>
-                  )}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {c.industry && <span className="badge bg-ink-100 text-ink-600">{c.industry}</span>}
                   {c.employeeCount && (
-                    <span className="badge bg-slate-100">
-                      {c.employeeCount} os.
-                    </span>
+                    <span className="badge bg-ink-100 text-ink-600">{c.employeeCount} os.</span>
                   )}
                 </div>
                 {c.priorityReason && (
-                  <p className="mt-2 text-xs text-slate-400">{c.priorityReason}</p>
+                  <p className="mt-2.5 line-clamp-2 text-xs text-ink-400">{c.priorityReason}</p>
                 )}
               </Link>
             ))}
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  tone?: "emerald" | "amber";
+}) {
+  const toneClass =
+    tone === "emerald"
+      ? "bg-emerald-50 text-emerald-600"
+      : tone === "amber"
+      ? "bg-amber-50 text-amber-600"
+      : "bg-brand-50 text-brand-600";
+  return (
+    <div className="card flex items-center gap-3 px-4 py-3.5">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${toneClass}`}>
+        {icon}
+      </span>
+      <div>
+        <p className="text-lg font-bold leading-none text-ink-900">{value}</p>
+        <p className="mt-1 text-[11px] font-medium text-ink-500">{label}</p>
+      </div>
     </div>
   );
 }
